@@ -14,18 +14,7 @@ fail() { echo -e "${RED}[NG]${NC} $1"; }
 echo "=== exp-b-socket-quiz セットアップ確認 ==="
 echo ""
 
-# ---------- git ----------
-echo "--- git ---"
-if command -v git &>/dev/null; then
-    ok "git $(git --version | awk '{print $3}')"
-else
-    fail "git が見つかりません"
-    echo "  → https://git-scm.com/downloads からインストールしてください"
-    exit 1
-fi
-
 # ---------- Java ----------
-echo ""
 echo "--- Java ---"
 if command -v javac &>/dev/null; then
     JAVA_VER=$(javac -version 2>&1 | awk '{print $2}')
