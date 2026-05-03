@@ -1,0 +1,7 @@
+# Java compiled files
+*.class
+*.jar
+
+# Environment variables
+.env
+.env.*
