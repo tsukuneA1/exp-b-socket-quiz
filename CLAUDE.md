@@ -4,22 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Run
 
-ビルドツール（Maven/Gradle）は使用していない。`javac` / `java` を直接使う。
+Mavenを使う。`pom.xml` はプロジェクトルートにある。
 
 ```bash
-# コンパイル（プロジェクトルートから実行）
-javac apps/shared/*.java apps/*.java
+# コンパイル
+mvn compile
 
 # サーバー起動（ポート省略時は 8080）
-java apps.Server
-java apps.Server 9090
+mvn exec:java -Dexec.mainClass=apps.Server
+mvn exec:java -Dexec.mainClass=apps.Server -Dexec.args=9090
 
 # クライアント起動（別ターミナルで）
-java apps.Client
-java apps.Client 9090
+mvn exec:java -Dexec.mainClass=apps.Client
+mvn exec:java -Dexec.mainClass=apps.Client -Dexec.args=9090
+
+# テスト実行
+mvn test
 ```
 
-`.class` ファイルは `.gitignore` で除外済みのためコミットしない。
+`target/` と `.class` ファイルは `.gitignore` で除外済みのためコミットしない。
 
 ## アーキテクチャ
 

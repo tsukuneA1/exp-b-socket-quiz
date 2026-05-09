@@ -2,6 +2,9 @@
 *.class
 *.jar
 
+# Maven
+target/
+
 # Environment variables
 .env
 .env.*
