@@ -31,13 +31,6 @@
 | B | 通信・同期制御担当 | 複数人接続と早押し判定を安定させる |
 | C | クライアント・テスト・機能補助担当 | CUI操作、テスト、問題データ、デモ確認を担当する |
 
-## 開発・共有方法
-
-コード共有はGitHub、もしくはGoogle Driveで行う予定。
-
-Repository:
-https://github.com/tsukuneA1/exp-b-socket-quiz
-
 ## 現時点での開発予定
 
 | 時期 | 状態 |
