@@ -7,16 +7,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ビルドツール（Maven/Gradle）は使用していない。`javac` / `java` を直接使う。
 
 ```bash
-# コンパイル
-javac shared/MessageType.java Server.java Client.java
+# コンパイル（プロジェクトルートから実行）
+javac apps/shared/*.java apps/*.java
 
 # サーバー起動（ポート省略時は 8080）
-java Server
-java Server 9090
+java apps.Server
+java apps.Server 9090
 
 # クライアント起動（別ターミナルで）
-java Client
-java Client 9090
+java apps.Client
+java apps.Client 9090
 ```
 
 `.class` ファイルは `.gitignore` で除外済みのためコミットしない。

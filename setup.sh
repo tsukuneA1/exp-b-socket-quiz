@@ -38,12 +38,12 @@ echo ""
 echo "--- コンパイル ---"
 cd "$(dirname "$0")"
 
-if javac shared/MessageType.java Server.java Client.java 2>/dev/null; then
+if javac apps/shared/*.java apps/*.java 2>/dev/null; then
     ok "Server.java, Client.java のコンパイル成功"
 else
     fail "コンパイルに失敗しました"
     echo "  → 以下のコマンドでエラー内容を確認してください:"
-    echo "     javac shared/MessageType.java Server.java Client.java"
+    echo "     javac apps/shared/*.java apps/*.java"
     exit 1
 fi
 
@@ -52,7 +52,7 @@ echo ""
 echo "--- 起動確認 ---"
 
 # サーバーをバックグラウンドで立てて接続できるか確認する
-java Server 18080 &
+java apps.Server 18080 &
 SERVER_PID=$!
 sleep 1
 
@@ -71,7 +71,7 @@ echo "=================================="
 ok "セットアップ完了！"
 echo ""
 echo "起動方法:"
-echo "  ターミナル1: java Server"
-echo "  ターミナル2: java Client"
+echo "  ターミナル1: java apps.Server"
+echo "  ターミナル2: java apps.Client"
 echo ""
 echo "詳細は CLAUDE.md を確認してください。"

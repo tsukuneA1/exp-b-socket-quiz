@@ -1,4 +1,4 @@
-package shared;
+package apps.shared;
 
 public class MessageType {
     // C → S
