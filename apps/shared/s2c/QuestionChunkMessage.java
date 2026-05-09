@@ -1,5 +1,6 @@
-package apps.shared;
+package apps.shared.s2c;
 
+import apps.shared.codec.InvalidMessageException;
 import java.nio.charset.StandardCharsets;
 
 public record QuestionChunkMessage(String chunk) implements ServerMessage {

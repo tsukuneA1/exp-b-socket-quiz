@@ -1,4 +1,4 @@
-package apps.shared;
+package apps.shared.codec;
 
 public class MessageType {
     // C → S

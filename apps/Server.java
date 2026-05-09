@@ -2,7 +2,6 @@ package apps;
 
 import java.io.*;
 import java.net.*;
-import apps.shared.MessageType;
 
 public class Server {
     public static final int DEFAULT_PORT = 8080;

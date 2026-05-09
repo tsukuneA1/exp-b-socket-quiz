@@ -1,4 +1,6 @@
-package apps.shared;
+package apps.shared.s2c;
+
+import apps.shared.codec.InvalidMessageException;
 
 public record ConnectAckMessage(int playerId) implements ServerMessage {
     public ConnectAckMessage {

@@ -1,4 +1,6 @@
-package apps.shared;
+package apps.shared.s2c;
+
+import apps.shared.codec.InvalidMessageException;
 
 public record DisconnectAckMessage() implements ServerMessage {
     public static DisconnectAckMessage parse(byte[] body) {

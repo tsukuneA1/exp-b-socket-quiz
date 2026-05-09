@@ -1,4 +1,6 @@
-package apps.shared;
+package apps.shared.c2s;
+
+import apps.shared.codec.InvalidMessageException;
 
 public record DisconnectMessage() implements ClientMessage {
     public static DisconnectMessage parse(byte[] body) {

@@ -2,7 +2,6 @@ package apps;
 
 import java.io.*;
 import java.net.*;
-import apps.shared.MessageType;
 
 public class Client {
     public static void main(String[] args)

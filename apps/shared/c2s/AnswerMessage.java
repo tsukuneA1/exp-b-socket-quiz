@@ -1,4 +1,6 @@
-package apps.shared;
+package apps.shared.c2s;
+
+import apps.shared.codec.InvalidMessageException;
 
 public record AnswerMessage(int index) implements ClientMessage {
     public AnswerMessage {
