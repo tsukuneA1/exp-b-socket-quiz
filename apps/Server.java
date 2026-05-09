@@ -2,34 +2,42 @@ package apps;
 
 import java.io.*;
 import java.net.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import apps.shared.c2s.ClientMessage;
+import apps.shared.c2s.ConnectMessage;
+import apps.shared.codec.FrameDecoder;
+import apps.shared.codec.FrameEncoder;
+import apps.shared.codec.MessageType;
+import apps.shared.s2c.ConnectAckMessage;
 
 public class Server {
     public static final int DEFAULT_PORT = 8080;
-    public static void main(String[] args)
-    throws IOException {
+    private static final AtomicInteger nextPlayerId = new AtomicInteger(1);
+
+    public static void main(String[] args) throws IOException {
         int port = (args.length > 0) ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-        ServerSocket s = new ServerSocket(port);
-        System.out.println("Started: " + s);
+        ServerSocket ss = new ServerSocket(port);
+        System.out.println("Started: " + ss);
         try {
-            Socket socket = s.accept();
+            Socket socket = ss.accept();
             try {
-                System.out.println(
-                    "Connection accepted: " + socket
-                );
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                PrintWriter out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())), true);
-                while (true) {
-                    String str = in.readLine();
-                    if(str.equals("END")) break;
-                    System.out.println("Echoing : ");
-                    out.println(str);
+                System.out.println("Connection accepted: " + socket);
+                DataInputStream in = new DataInputStream(socket.getInputStream());
+                DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+
+                FrameDecoder.Frame frame = FrameDecoder.readFrame(in);
+                ClientMessage msg = FrameDecoder.decodeClient(frame);
+                if (msg instanceof ConnectMessage) {
+                    int playerId = nextPlayerId.getAndIncrement();
+                    ConnectAckMessage ack = new ConnectAckMessage(playerId);
+                    FrameEncoder.writeFrame(out, MessageType.CONNECT_ACK, ack.toBytes());
+                    System.out.println("Sent CONNECT_ACK, playerId=" + playerId);
                 }
             } finally {
-                System.out.println("closing...");
                 socket.close();
             }
         } finally {
-            s.close();
+            ss.close();
         }
     }
 }
