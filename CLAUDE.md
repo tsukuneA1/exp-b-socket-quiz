@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # コンパイル
-javac Server.java Client.java
+javac shared/MessageType.java Server.java Client.java
 
 # サーバー起動（ポート省略時は 8080）
 java Server

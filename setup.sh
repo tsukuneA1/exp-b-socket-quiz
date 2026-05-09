@@ -38,12 +38,12 @@ echo ""
 echo "--- コンパイル ---"
 cd "$(dirname "$0")"
 
-if javac Server.java Client.java 2>/dev/null; then
+if javac shared/MessageType.java Server.java Client.java 2>/dev/null; then
     ok "Server.java, Client.java のコンパイル成功"
 else
     fail "コンパイルに失敗しました"
     echo "  → 以下のコマンドでエラー内容を確認してください:"
-    echo "     javac Server.java Client.java"
+    echo "     javac shared/MessageType.java Server.java Client.java"
     exit 1
 fi
 
