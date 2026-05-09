@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Run
 
-Mavenを使う。`pom.xml` はプロジェクトルートにある。
+Mavenを使う。`pom.xml` はプロジェクトルートにある。Java 17 必須（sealed interface・record・switch式を使用）。
 
 ```bash
 # コンパイル
@@ -26,25 +26,46 @@ mvn test
 
 ## アーキテクチャ
 
-**現状**: 1対1のTCP echoサーバー。`Server.java` と `Client.java` のみ。
+**現状**: バイナリフレーミングで CONNECT/CONNECT_ACK の1対1ハンドシェイクが動作している。
 
 **目標**: リアルタイム早押しクイズ。複数クライアントがサーバーに接続し、サーバーが問題出題・早押し判定・得点管理を行う。
 
 設計の詳細は [docs/design/2026-05-03-communication-sync.md](docs/design/2026-05-03-communication-sync.md) を参照。
 
-### 通信プロトコル
+### パッケージ構成
 
-TCPバイトストリーム上に独自フレーミングを実装する予定:
+```
+apps/
+  Client.java              エントリポイント
+  Server.java              エントリポイント（nextPlayerId を AtomicInteger で採番）
+  shared/
+    codec/                 フレーミング層
+      MessageType.java     type バイト定数（C→S: 0x01-0x03、S→C: 0x11-0x17）
+      FrameDecoder.java    readFrame() / decodeClient() / decodeServer()
+      FrameEncoder.java    writeFrame()
+      InvalidMessageException.java
+    c2s/                   Client→Server メッセージ（両側が参照する）
+      ClientMessage.java   sealed interface
+      ConnectMessage, AnswerMessage, DisconnectMessage
+    s2c/                   Server→Client メッセージ（両側が参照する）
+      ServerMessage.java   sealed interface
+      ConnectAckMessage, QuestionOptionsMessage, QuestionChunkMessage,
+      WrongAnswerMessage, RoundEndMessage, ScoreMessage,
+      DisconnectAckMessage, ScoreEntry
+```
+
+### 通信プロトコル
 
 ```
 | type (1 byte) | body_length (4 bytes, big-endian) | body (n bytes) |
 ```
 
-現状の `readLine()` による改行区切りはプロトタイプのみ。
+各メッセージクラスは `parse(byte[] body)` でデコード、`toBytes()` でボディをエンコードする。
+`FrameDecoder` / `FrameEncoder` は `DataInputStream` / `DataOutputStream` を直接受け取る。
 
-### スレッドモデル
+### スレッドモデル（実装予定）
 
-クライアント1人につき1スレッドを立て、受信メッセージを `BlockingQueue` に積む。ゲームロジックスレッドがキューからデキューして処理する。
+クライアント1人につき1スレッド（`ClientSession`）を立て、受信メッセージを `BlockingQueue<ClientMessage>` に積む。ゲームロジックスレッド（`GameEngine`、担当A）がキューからデキューして処理する。
 
 ## 役割分担
 

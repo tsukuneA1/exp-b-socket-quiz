@@ -19,17 +19,33 @@ echo "--- Java ---"
 if command -v javac &>/dev/null; then
     JAVA_VER=$(javac -version 2>&1 | awk '{print $2}')
     JAVA_MAJOR=$(echo "$JAVA_VER" | cut -d. -f1)
-    if [ "$JAVA_MAJOR" -ge 11 ]; then
+    if [ "$JAVA_MAJOR" -ge 17 ]; then
         ok "javac $JAVA_VER"
     else
-        warn "javac $JAVA_VER (Java 11 以上を推奨します)"
+        warn "javac $JAVA_VER (Java 17 以上が必要です)"
+        exit 1
     fi
 else
     fail "javac が見つかりません"
     echo "  → JDK をインストールしてください"
-    echo "     macOS:   brew install openjdk"
-    echo "     Ubuntu:  sudo apt install default-jdk"
+    echo "     macOS:   brew install openjdk@17"
+    echo "     Ubuntu:  sudo apt install openjdk-17-jdk"
     echo "     Windows: https://adoptium.net/"
+    exit 1
+fi
+
+# ---------- Maven ----------
+echo ""
+echo "--- Maven ---"
+if command -v mvn &>/dev/null; then
+    MVN_VER=$(mvn -version 2>&1 | head -1)
+    ok "$MVN_VER"
+else
+    fail "mvn が見つかりません"
+    echo "  → Maven をインストールしてください"
+    echo "     macOS:   brew install maven"
+    echo "     Ubuntu:  sudo apt install maven"
+    echo "     Windows: https://maven.apache.org/download.cgi"
     exit 1
 fi
 
@@ -38,12 +54,12 @@ echo ""
 echo "--- コンパイル ---"
 cd "$(dirname "$0")"
 
-if javac apps/shared/*.java apps/*.java 2>/dev/null; then
-    ok "Server.java, Client.java のコンパイル成功"
+if mvn compile -q 2>/dev/null; then
+    ok "mvn compile 成功"
 else
     fail "コンパイルに失敗しました"
     echo "  → 以下のコマンドでエラー内容を確認してください:"
-    echo "     javac apps/shared/*.java apps/*.java"
+    echo "     mvn compile"
     exit 1
 fi
 
@@ -51,8 +67,7 @@ fi
 echo ""
 echo "--- 起動確認 ---"
 
-# サーバーをバックグラウンドで立てて接続できるか確認する
-java apps.Server 18080 &
+mvn exec:java -Dexec.mainClass=apps.Server -Dexec.args=18080 -q &
 SERVER_PID=$!
 sleep 1
 
@@ -71,7 +86,7 @@ echo "=================================="
 ok "セットアップ完了！"
 echo ""
 echo "起動方法:"
-echo "  ターミナル1: java apps.Server"
-echo "  ターミナル2: java apps.Client"
+echo "  ターミナル1: mvn exec:java -Dexec.mainClass=apps.Server"
+echo "  ターミナル2: mvn exec:java -Dexec.mainClass=apps.Client"
 echo ""
 echo "詳細は CLAUDE.md を確認してください。"
