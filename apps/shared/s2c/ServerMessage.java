@@ -1,5 +1,5 @@
 package apps.shared.s2c;
 
 public sealed interface ServerMessage
-        permits ConnectAckMessage, QuestionOptionsMessage, QuestionChunkMessage,
+        permits ConnectAckMessage, ConnectNgMessage, QuestionOptionsMessage, QuestionChunkMessage,
                 WrongAnswerMessage, RoundEndMessage, ScoreMessage, DisconnectAckMessage {}

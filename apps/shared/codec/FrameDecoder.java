@@ -5,6 +5,7 @@ import apps.shared.c2s.ClientMessage;
 import apps.shared.c2s.ConnectMessage;
 import apps.shared.c2s.DisconnectMessage;
 import apps.shared.s2c.ConnectAckMessage;
+import apps.shared.s2c.ConnectNgMessage;
 import apps.shared.s2c.DisconnectAckMessage;
 import apps.shared.s2c.ServerMessage;
 
@@ -36,6 +37,7 @@ public class FrameDecoder {
     public static ServerMessage decodeServer(Frame frame) {
         return switch (frame.type()) {
             case MessageType.CONNECT_ACK    -> ConnectAckMessage.parse(frame.body());
+            case MessageType.CONNECT_NG     -> ConnectNgMessage.parse(frame.body());
             case MessageType.DISCONNECT_ACK -> DisconnectAckMessage.parse(frame.body());
             default -> throw new InvalidMessageException(
                     "Unknown S→C type: 0x" + Integer.toHexString(frame.type()));
