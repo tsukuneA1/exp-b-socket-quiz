@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents working in this repository.
 
 ## Build & Run
 
-Mavenを使う。`pom.xml` はプロジェクトルートにある。Java 17 必須（sealed interface・record・switch式を使用）。
+Mavenを使う。`pom.xml` はプロジェクトルートにある。Java 21 必須（sealed interface・record・switch式・パターンマッチングswitch を使用）。
 
 ```bash
 # コンパイル
