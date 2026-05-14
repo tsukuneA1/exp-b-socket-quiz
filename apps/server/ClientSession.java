@@ -1,0 +1,65 @@
+package apps.server;
+
+import java.io.*;
+import java.net.*;
+import apps.game.LobbyManager;
+import apps.shared.c2s.*;
+import apps.shared.codec.*;
+import apps.shared.s2c.*;
+
+public class ClientSession implements Runnable {
+
+    private final Socket socket;
+    private final LobbyManager lobby;
+    private int playerId;
+    private String playerName;
+
+    public ClientSession(Socket socket, LobbyManager lobby) {
+        this.socket = socket;
+        this.lobby  = lobby;
+    }
+
+    @Override
+    public void run() {
+        try {
+            DataInputStream  in  = new DataInputStream(socket.getInputStream());
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+
+            FrameDecoder.Frame frame = FrameDecoder.readFrame(in);
+            ClientMessage first = FrameDecoder.decodeClient(frame);
+            if (!(first instanceof ConnectMessage connect)) {
+                System.out.println("Expected CONNECT but got: " + first);
+                return;
+            }
+            this.playerId   = lobby.assignId();
+            this.playerName = connect.playerName();
+            FrameEncoder.writeFrame(out, MessageType.CONNECT_ACK,
+                    new ConnectAckMessage(playerId).toBytes());
+            System.out.println("CONNECT_ACK: playerId=" + playerId + " name=" + playerName);
+
+            while (true) {
+                FrameDecoder.Frame f = FrameDecoder.readFrame(in);
+                ClientMessage msg = FrameDecoder.decodeClient(f);
+                switch (msg) {
+                    case DisconnectMessage ignored -> {
+                        FrameEncoder.writeFrame(out, MessageType.DISCONNECT_ACK,
+                                new DisconnectAckMessage().toBytes());
+                        System.out.println("DISCONNECT_ACK: playerId=" + playerId);
+                        return;
+                    }
+                    case AnswerMessage answer ->
+                        System.out.println("ANSWER: playerId=" + playerId + " index=" + answer.index());
+                    default ->
+                        System.out.println("Unknown message: " + msg);
+                }
+            }
+
+        } catch (IOException e) {
+            System.out.println("Session lost: playerId=" + playerId + " " + e.getMessage());
+        } finally {
+            lobby.remove(this);
+            try { socket.close(); } catch (IOException ignored) {}
+            System.out.println("Session closed: playerId=" + playerId);
+        }
+    }
+}

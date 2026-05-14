@@ -40,8 +40,9 @@ apps/
   Server.java              エントリポイント（担当B）
   game/                    ゲームロジック層（担当A の作業場）
     GameConfig.java        定数（MIN_PLAYERS=2, MAX_PLAYERS=4）
+    LobbyManager.java      セッション管理・ID採番・満員判定
   server/                  サーバー側インフラ層（担当B の作業場）
-    ClientSession.java     per-clientスレッド（実装予定）
+    ClientSession.java     per-clientスレッド（CONNECT〜DISCONNECT を処理）
   shared/                  プロトコル定義（担当B が管理・変更前に要確認）
     codec/
       MessageType.java     type バイト定数（C→S: 0x01-0x03、S→C: 0x11-0x18）
