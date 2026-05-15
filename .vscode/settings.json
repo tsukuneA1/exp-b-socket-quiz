@@ -1,5 +1,5 @@
 {
-  "java.project.sourcePaths": ["."],
+  "java.project.sourcePaths": ["apps"],
   "files.exclude": {
     "bin/": true
   }
