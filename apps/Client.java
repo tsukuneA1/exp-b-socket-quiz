@@ -22,8 +22,7 @@ public class Client {
     private static volatile boolean running = true;
 
     public static void main(String[] args) throws IOException {
-        String playerName = (args.length > 0) ? args[0] : "Player1";
-        int port = (args.length > 1) ? Integer.parseInt(args[1]) : Server.DEFAULT_PORT;
+        int port = (args.length > 0) ? Integer.parseInt(args[0]) : Server.DEFAULT_PORT;
 
         Socket socket = new Socket(InetAddress.getByName("localhost"), port);
 
@@ -32,19 +31,19 @@ public class Client {
             DataOutputStream out = new DataOutputStream(socket.getOutputStream());
 
             System.out.println("=== Socket Quiz Client ===");
-            System.out.println("Player name: " + playerName);
             System.out.println("Server: localhost:" + port);
             System.out.println();
 
-            ConnectMessage connect = new ConnectMessage(playerName);
+            ConnectMessage connect = new ConnectMessage(); //ConnectMessageにplayerNameは渡さない
             FrameEncoder.writeFrame(out, MessageType.CONNECT, connect.toBytes());
-            System.out.println("Sent CONNECT name=" + playerName);
+            System.out.println("Sent CONNECT");
 
             FrameDecoder.Frame firstFrame = FrameDecoder.readFrame(in);
             ServerMessage firstMessage = FrameDecoder.decodeServer(firstFrame);
 
             if (firstMessage instanceof ConnectAckMessage ack) {
                 System.out.println("Connected. Your playerId = " + ack.playerId());
+                System.out.println("Your playerName = Player" + ack.playerId());
             } else if (firstMessage instanceof ConnectNgMessage ng) {
                 System.out.println("Connection failed. reason=" + ng.reason());
                 return;
@@ -101,8 +100,8 @@ public class Client {
 
                         int answerIndex = Integer.parseInt(parts[1]);
 
-                        if (answerIndex < 0 || answerIndex > 255) {
-                            System.out.println("Answer index must be between 0 and 255.");
+                        if (answerIndex < 0 || answerIndex > 3) {
+                            System.out.println("Answer index must be between 0 and 3.");
                             break;
                         }
 

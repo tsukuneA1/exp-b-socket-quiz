@@ -12,7 +12,6 @@ public class ClientSession implements Runnable {
     private final Socket socket;
     private final LobbyManager lobby;
     private int playerId;
-    private String playerName;
 
     public ClientSession(Socket socket, LobbyManager lobby) {
         this.socket = socket;
@@ -27,15 +26,14 @@ public class ClientSession implements Runnable {
 
             FrameDecoder.Frame frame = FrameDecoder.readFrame(in);
             ClientMessage first = FrameDecoder.decodeClient(frame);
-            if (!(first instanceof ConnectMessage connect)) {
+            if (!(first instanceof ConnectMessage)) {
                 System.out.println("Expected CONNECT but got: " + first);
                 return;
             }
             this.playerId   = lobby.assignId();
-            this.playerName = connect.playerName();
             FrameEncoder.writeFrame(out, MessageType.CONNECT_ACK,
                     new ConnectAckMessage(playerId).toBytes());
-            System.out.println("CONNECT_ACK: playerId=" + playerId + " name=" + playerName);
+            System.out.println("CONNECT_ACK: Player" + playerId);
 
             while (true) {
                 FrameDecoder.Frame f = FrameDecoder.readFrame(in);
