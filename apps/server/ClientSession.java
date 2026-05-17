@@ -13,17 +13,26 @@ public class ClientSession implements Runnable {
     private final LobbyManager lobby;
     private int playerId;
     private String playerName;
+    private DataOutputStream out;
 
     public ClientSession(Socket socket, LobbyManager lobby) {
         this.socket = socket;
         this.lobby  = lobby;
     }
 
+    public int getPlayerId() {
+        return playerId;
+    }
+
+    public DataOutputStream getOut() {
+        return out;
+    }
+
     @Override
     public void run() {
         try {
-            DataInputStream  in  = new DataInputStream(socket.getInputStream());
-            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            this.out = new DataOutputStream(socket.getOutputStream());
 
             FrameDecoder.Frame frame = FrameDecoder.readFrame(in);
             ClientMessage first = FrameDecoder.decodeClient(frame);
@@ -47,8 +56,12 @@ public class ClientSession implements Runnable {
                         System.out.println("DISCONNECT_ACK: playerId=" + playerId);
                         return;
                     }
-                    case AnswerMessage answer ->
+                    case AnswerMessage answer -> {
                         System.out.println("ANSWER: playerId=" + playerId + " index=" + answer.index());
+                        if (lobby.getGameManager() != null) {
+                            lobby.getGameManager().onAnswer(this, answer.index());
+                        }
+                    }
                     default ->
                         System.out.println("Unknown message: " + msg);
                 }

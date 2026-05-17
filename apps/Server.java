@@ -2,6 +2,7 @@ package apps;
 
 import java.io.*;
 import java.net.*;
+import apps.game.GameManager;
 import apps.game.LobbyManager;
 import apps.server.ClientSession;
 import apps.shared.codec.FrameEncoder;
@@ -14,6 +15,8 @@ public class Server {
     public static void main(String[] args) throws IOException {
         int port = (args.length > 0) ? Integer.parseInt(args[0]) : DEFAULT_PORT;
         LobbyManager lobby = new LobbyManager();
+        GameManager gameManager = new GameManager(lobby);
+        lobby.setGameManager(gameManager);
 
         try (ServerSocket ss = new ServerSocket(port)) {
             System.out.println("Server started: " + ss);
@@ -38,6 +41,17 @@ public class Server {
                 lobby.add(session);
                 new Thread(session).start();
                 System.out.println("Session started, clients=" + lobby.size());
+
+                if (lobby.isReady()) {
+                    new Thread(() -> {
+                        try { Thread.sleep(1000); } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+                        System.out.println("[Server] Starting game with " + lobby.size() + " players.");
+                        gameManager.start();
+                    }, "game-thread").start();
+                }
             }
         }
     }

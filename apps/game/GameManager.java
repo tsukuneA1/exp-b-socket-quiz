@@ -1,0 +1,139 @@
+package apps.game;
+
+import apps.server.ClientSession;
+import apps.shared.codec.FrameEncoder;
+import apps.shared.codec.MessageType;
+import apps.shared.s2c.*;
+
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+
+public class GameManager {
+
+    private final LobbyManager lobby;
+    private final List<Question> questions = Question.ALL;
+
+    private final AtomicBoolean accepting = new AtomicBoolean(false);
+
+    private final int[] scores = new int[GameConfig.MAX_PLAYERS + 1];
+
+    private final AtomicInteger wrongCount = new AtomicInteger(0);
+    private int currentCorrectIndex = 0;
+
+    private final Object roundLock = new Object();
+    private volatile boolean roundDone = false;
+
+    public GameManager(LobbyManager lobby) {
+        this.lobby = lobby;
+    }
+
+    public void start() {
+        System.out.println("[GameManager] Game started. questions=" + questions.size());
+
+        for (int i = 0; i < questions.size(); i++) {
+            Question q = questions.get(i);
+            System.out.println("[GameManager] Round " + (i + 1) + ": " + q.text());
+
+            currentCorrectIndex = q.correctIndex();
+            wrongCount.set(0);
+            roundDone = false;
+            accepting.set(true);
+
+            broadcast(MessageType.QUESTION_CHUNK,
+                    new QuestionChunkMessage(q.text()).toBytes());
+
+            broadcast(MessageType.QUESTION_OPTIONS,
+                    new QuestionOptionsMessage(q.options()).toBytes());
+
+            synchronized (roundLock) {
+                while (!roundDone) {
+                    try {
+                        roundLock.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+
+            try { Thread.sleep(2000); } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+
+        sendFinalScore();
+        System.out.println("[GameManager] Game over.");
+    }
+
+    public void onAnswer(ClientSession session, int answerIndex) {
+        if (!accepting.get()) return;
+
+        int playerId = session.getPlayerId();
+        System.out.println("[GameManager] ANSWER: playerId=" + playerId + " index=" + answerIndex);
+
+        if (answerIndex == currentCorrectIndex) {
+            accepting.set(false);
+            scores[playerId]++;
+
+            System.out.println("[GameManager] Correct! playerId=" + playerId);
+            broadcast(MessageType.ROUND_END,
+                    new RoundEndMessage(playerId, currentCorrectIndex).toBytes());
+            broadcastScore();
+
+            synchronized (roundLock) {
+                roundDone = true;
+                roundLock.notifyAll();
+            }
+
+        } else {
+            System.out.println("[GameManager] Wrong answer: playerId=" + playerId);
+            sendTo(session.getOut(), MessageType.WRONG_ANSWER,
+                    new WrongAnswerMessage().toBytes());
+
+            int wrong = wrongCount.incrementAndGet();
+            if (wrong >= lobby.size()) {
+                accepting.set(false);
+                System.out.println("[GameManager] All players answered wrong. Moving to next round.");
+
+                broadcast(MessageType.ROUND_END,
+                        new RoundEndMessage(0, currentCorrectIndex).toBytes());
+
+                synchronized (roundLock) {
+                    roundDone = true;
+                    roundLock.notifyAll();
+                }
+            }
+        }
+    }
+
+    private void broadcast(int type, byte[] body) {
+        lobby.broadcast(type, body);
+    }
+
+    private void sendTo(DataOutputStream out, int type, byte[] body) {
+        try {
+            synchronized (out) {
+                FrameEncoder.writeFrame(out, type, body);
+            }
+        } catch (IOException e) {
+            System.err.println("[GameManager] Failed to send to client: " + e.getMessage());
+        }
+    }
+
+    private void broadcastScore() {
+        List<ScoreEntry> entries = lobby.getSessions().stream()
+                .map(s -> new ScoreEntry(s.getPlayerId(), scores[s.getPlayerId()]))
+                .toList();
+        broadcast(MessageType.SCORE, new ScoreMessage(entries).toBytes());
+    }
+
+    private void sendFinalScore() {
+        System.out.println("[GameManager] Sending final scores.");
+        broadcastScore();
+    }
+}
