@@ -26,7 +26,7 @@ mvn test
 
 ## アーキテクチャ
 
-**現状**: バイナリフレーミングで CONNECT（playerName付き）/ CONNECT_ACK の1対1ハンドシェイクが動作している。
+**現状**: バイナリフレーミングで CONNECT（playerName付き）/ CONNECT_ACK のマルチクライアント接続が動作している。満員時は CONNECT_NG を返す。
 
 **目標**: リアルタイム早押しクイズ。複数クライアントがサーバーに接続し、サーバーが問題出題・早押し判定・得点管理を行う。
 
@@ -70,9 +70,12 @@ apps/
 
 `shared/` 配下のファイルは担当B が管理する。追加・変更が必要な場合は担当B に確認すること。
 
-### スレッドモデル（実装予定）
+### スレッドモデル
 
-クライアント1人につき1スレッド（`ClientSession`）を立て、受信メッセージを `BlockingQueue<ClientMessage>` に積む。ゲームロジックスレッド（`GameEngine`、担当A）がキューからデキューして処理する。担当Aは `FrameEncoder` / `FrameDecoder` を直接呼ばず、担当Bが提供するAPIを通じて送受信する。
+クライアント1人につき1スレッド（`ClientSession`）を立てる構成は実装済み。
+現状は CONNECT→CONNECT_ACK・ANSWER受信ログ・DISCONNECT→DISCONNECT_ACK まで動作する。
+
+次のステップ（未実装）: 受信メッセージを `BlockingQueue<ClientMessage>` に積み、ゲームロジックスレッド（`GameEngine`、担当A）がキューからデキューして処理する。担当Aは `FrameEncoder` / `FrameDecoder` を直接呼ばず、担当Bが提供するAPIを通じて送受信する。
 
 ## 役割分担
 
