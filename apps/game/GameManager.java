@@ -43,11 +43,11 @@ public class GameManager {
             roundDone = false;
             accepting.set(true);
 
-            broadcast(MessageType.QUESTION_CHUNK,
-                    new QuestionChunkMessage(q.text()).toBytes());
-
             broadcast(MessageType.QUESTION_OPTIONS,
                     new QuestionOptionsMessage(q.options()).toBytes());
+
+            broadcast(MessageType.QUESTION_CHUNK,
+                    new QuestionChunkMessage(q.text()).toBytes());
 
             synchronized (roundLock) {
                 while (!roundDone) {
