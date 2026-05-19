@@ -102,13 +102,22 @@ sequenceDiagram
     S->>C1: CONNECT_ACK (id=1)
     S->>C2: CONNECT_ACK (id=2)
 
-    S->>C1: QUESTION
-    S->>C2: QUESTION
+    Note over S: MIN_PLAYERS 揃ったらゲーム開始
+
+    S->>C1: QUESTION_OPTIONS (選択肢を即座に全表示)
+    S->>C2: QUESTION_OPTIONS
+
+    loop 問題文を一定間隔でストリーミング
+        S->>C1: QUESTION_CHUNK
+        S->>C2: QUESTION_CHUNK
+    end
+
+    Note over C1,C2: 選択肢を見ながら問題文が読まれていく<br/>途中で早押し可能
 
     C1->>S: ANSWER(2)
     C2->>S: ANSWER(3)（わずかに後）
 
-    Note over S: synchronized ブロック内で<br/>最初のANSWERのみ受理
+    Note over S: AtomicBoolean で<br/>最初のANSWERのみ受理
 
     alt C1が正解
         S->>C1: ROUND_END (winner=1, correct=2)
