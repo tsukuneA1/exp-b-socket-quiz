@@ -2,6 +2,7 @@ package apps;
 
 import java.io.*;
 import java.net.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import apps.game.GameManager;
 import apps.game.LobbyManager;
 import apps.server.ClientSession;
@@ -17,6 +18,7 @@ public class Server {
         LobbyManager lobby = new LobbyManager();
         GameManager gameManager = new GameManager(lobby);
         lobby.setGameManager(gameManager);
+        AtomicBoolean gameStarted = new AtomicBoolean(false);
 
         try (ServerSocket ss = new ServerSocket(port)) {
             System.out.println("Server started: " + ss);
@@ -42,7 +44,7 @@ public class Server {
                 new Thread(session).start();
                 System.out.println("Session started, clients=" + lobby.size());
 
-                if (lobby.isReady()) {
+                if (lobby.isReady() && gameStarted.compareAndSet(false, true)) {
                     new Thread(() -> {
                         try { Thread.sleep(1000); } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
