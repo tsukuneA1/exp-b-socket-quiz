@@ -22,7 +22,7 @@ public class GameManager {
     private final int[] scores = new int[GameConfig.MAX_PLAYERS + 1];
 
     private final AtomicInteger wrongCount = new AtomicInteger(0);
-    private int currentCorrectIndex = 0;
+    private volatile int currentCorrectIndex = 0;
 
     private final Object roundLock = new Object();
     private volatile boolean roundDone = false;
