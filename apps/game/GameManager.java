@@ -7,10 +7,11 @@ import apps.shared.s2c.*;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
 
 public class GameManager {
 
@@ -19,19 +20,35 @@ public class GameManager {
 
     private final AtomicBoolean accepting = new AtomicBoolean(false);
 
-    private final int[] scores = new int[GameConfig.MAX_PLAYERS + 1];
+    private final AtomicBoolean streaming = new AtomicBoolean(false);
 
+    private final int[] scores = new int[GameConfig.MAX_PLAYERS + 1];
     private final AtomicInteger wrongCount = new AtomicInteger(0);
     private volatile int currentCorrectIndex = 0;
 
     private final Object roundLock = new Object();
     private volatile boolean roundDone = false;
 
+    private final CountDownLatch startLatch = new CountDownLatch(1);
+
     public GameManager(LobbyManager lobby) {
         this.lobby = lobby;
     }
 
+    public void onStart() {
+        System.out.println("[GameManager] START received from host.");
+        startLatch.countDown();
+    }
+
     public void start() {
+        System.out.println("[GameManager] Waiting for host to send START...");
+        try {
+            startLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+
         System.out.println("[GameManager] Game started. questions=" + questions.size());
 
         for (int i = 0; i < questions.size(); i++) {
@@ -41,13 +58,11 @@ public class GameManager {
             currentCorrectIndex = q.correctIndex();
             wrongCount.set(0);
             roundDone = false;
-            accepting.set(true);
 
             broadcast(MessageType.QUESTION_OPTIONS,
                     new QuestionOptionsMessage(q.options()).toBytes());
 
-            broadcast(MessageType.QUESTION_CHUNK,
-                    new QuestionChunkMessage(q.text()).toBytes());
+            streamQuestionText(q.text());
 
             synchronized (roundLock) {
                 while (!roundDone) {
@@ -70,6 +85,31 @@ public class GameManager {
         System.out.println("[GameManager] Game over.");
     }
 
+    private void streamQuestionText(String text) {
+        streaming.set(true);
+        accepting.set(true);
+
+        int[] codePoints = text.codePoints().toArray();
+
+        for (int cp : codePoints) {
+            if (!streaming.get()) {
+
+                System.out.println("[GameManager] Streaming stopped by answer.");
+                break;
+            }
+            String ch = new String(Character.toChars(cp));
+            broadcast(MessageType.QUESTION_CHUNK,
+                    new QuestionChunkMessage(ch).toBytes());
+
+            try {
+                Thread.sleep(GameConfig.CHUNK_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
     public void onAnswer(ClientSession session, int answerIndex) {
         if (!accepting.get()) return;
 
@@ -77,6 +117,7 @@ public class GameManager {
         System.out.println("[GameManager] ANSWER: playerId=" + playerId + " index=" + answerIndex);
 
         if (answerIndex == currentCorrectIndex) {
+            streaming.set(false);
             accepting.set(false);
             scores[playerId]++;
 
@@ -97,9 +138,9 @@ public class GameManager {
 
             int wrong = wrongCount.incrementAndGet();
             if (wrong >= lobby.size()) {
+                streaming.set(false);
                 accepting.set(false);
                 System.out.println("[GameManager] All players answered wrong. Moving to next round.");
-
                 broadcast(MessageType.ROUND_END,
                         new RoundEndMessage(0, currentCorrectIndex).toBytes());
 

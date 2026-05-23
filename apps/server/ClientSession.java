@@ -44,7 +44,8 @@ public class ClientSession implements Runnable {
             this.playerName = connect.playerName();
             FrameEncoder.writeFrame(out, MessageType.CONNECT_ACK,
                     new ConnectAckMessage(playerId).toBytes());
-            System.out.println("CONNECT_ACK: playerId=" + playerId + " name=" + playerName);
+            System.out.println("CONNECT_ACK: playerId=" + playerId + " name=" + playerName
+                    + (lobby.isHost(playerId) ? " [HOST]" : ""));
 
             while (true) {
                 FrameDecoder.Frame f = FrameDecoder.readFrame(in);
@@ -60,6 +61,17 @@ public class ClientSession implements Runnable {
                         System.out.println("ANSWER: playerId=" + playerId + " index=" + answer.index());
                         if (lobby.getGameManager() != null) {
                             lobby.getGameManager().onAnswer(this, answer.index());
+                        }
+                    }
+                    case StartMessage ignored -> {
+                        // ホストだけSTARTを受け付ける
+                        if (lobby.isHost(playerId)) {
+                            System.out.println("START: playerId=" + playerId + " [HOST]");
+                            if (lobby.getGameManager() != null) {
+                                lobby.getGameManager().onStart();
+                            }
+                        } else {
+                            System.out.println("START rejected: playerId=" + playerId + " is not host");
                         }
                     }
                     default ->

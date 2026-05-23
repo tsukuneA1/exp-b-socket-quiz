@@ -4,14 +4,15 @@ import apps.shared.c2s.AnswerMessage;
 import apps.shared.c2s.ClientMessage;
 import apps.shared.c2s.ConnectMessage;
 import apps.shared.c2s.DisconnectMessage;
+import apps.shared.c2s.StartMessage;
 import apps.shared.s2c.ConnectAckMessage;
 import apps.shared.s2c.ConnectNgMessage;
 import apps.shared.s2c.DisconnectAckMessage;
-import apps.shared.s2c.ServerMessage;
 import apps.shared.s2c.QuestionChunkMessage;
 import apps.shared.s2c.QuestionOptionsMessage;
 import apps.shared.s2c.RoundEndMessage;
 import apps.shared.s2c.ScoreMessage;
+import apps.shared.s2c.ServerMessage;
 import apps.shared.s2c.WrongAnswerMessage;
 
 import java.io.DataInputStream;
@@ -34,6 +35,7 @@ public class FrameDecoder {
             case MessageType.CONNECT    -> ConnectMessage.parse(frame.body());
             case MessageType.ANSWER     -> AnswerMessage.parse(frame.body());
             case MessageType.DISCONNECT -> DisconnectMessage.parse(frame.body());
+            case MessageType.START      -> StartMessage.parse(frame.body());
             default -> throw new InvalidMessageException(
                     "Unknown C→S type: 0x" + Integer.toHexString(frame.type()));
         };
@@ -41,9 +43,9 @@ public class FrameDecoder {
 
     public static ServerMessage decodeServer(Frame frame) {
         return switch (frame.type()) {
-            case MessageType.CONNECT_ACK    -> ConnectAckMessage.parse(frame.body());
-            case MessageType.CONNECT_NG     -> ConnectNgMessage.parse(frame.body());
-            case MessageType.DISCONNECT_ACK -> DisconnectAckMessage.parse(frame.body());
+            case MessageType.CONNECT_ACK      -> ConnectAckMessage.parse(frame.body());
+            case MessageType.CONNECT_NG       -> ConnectNgMessage.parse(frame.body());
+            case MessageType.DISCONNECT_ACK   -> DisconnectAckMessage.parse(frame.body());
             case MessageType.QUESTION_CHUNK   -> QuestionChunkMessage.parse(frame.body());
             case MessageType.QUESTION_OPTIONS -> QuestionOptionsMessage.parse(frame.body());
             case MessageType.WRONG_ANSWER     -> WrongAnswerMessage.parse(frame.body());

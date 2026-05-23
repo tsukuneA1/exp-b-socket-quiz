@@ -1,4 +1,4 @@
 package apps.shared.c2s;
 
 public sealed interface ClientMessage
-        permits ConnectMessage, AnswerMessage, DisconnectMessage {}
+        permits ConnectMessage, AnswerMessage, DisconnectMessage, StartMessage {}

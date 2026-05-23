@@ -5,6 +5,7 @@ public class MessageType {
     public static final int CONNECT    = 0x01;
     public static final int ANSWER     = 0x02;
     public static final int DISCONNECT = 0x03;
+    public static final int START      = 0x04;
 
     // S → C
     public static final int CONNECT_ACK      = 0x11;
