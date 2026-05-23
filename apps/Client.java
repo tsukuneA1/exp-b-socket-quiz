@@ -15,6 +15,11 @@ import apps.shared.c2s.ConnectMessage;
 import apps.shared.s2c.ConnectAckMessage;
 import apps.shared.s2c.ConnectNgMessage;
 import apps.shared.s2c.DisconnectAckMessage;
+import apps.shared.s2c.QuestionChunkMessage;
+import apps.shared.s2c.QuestionOptionsMessage;
+import apps.shared.s2c.RoundEndMessage;
+import apps.shared.s2c.ScoreMessage;
+import apps.shared.s2c.WrongAnswerMessage;
 import apps.shared.s2c.ServerMessage;
 
 public class Client {
@@ -111,6 +116,11 @@ public class Client {
                         System.out.println("Sent ANSWER index=" + answerIndex);
                     }
 
+                    case "start" -> {
+                        FrameEncoder.writeFrame(out, MessageType.START, new byte[0]);
+                        System.out.println("Sent START");
+                    }
+
                     case "disconnect", "quit", "exit" -> {
                         FrameEncoder.writeFrame(out, MessageType.DISCONNECT, new byte[0]);
                         System.out.println("Sent DISCONNECT");
@@ -153,6 +163,28 @@ public class Client {
                     System.out.println("Received CONNECT_NG, reason=" + ng.reason());
                     running = false;
                     break;
+                } else if (message instanceof QuestionChunkMessage chunk) {
+                    System.out.print(chunk.chunk());
+                } else if (message instanceof QuestionOptionsMessage opts) {
+                    System.out.println();
+                    System.out.println("--- 選択肢 ---");
+                    for (int i = 0; i < opts.options().size(); i++) {
+                        System.out.println("  " + i + ": " + opts.options().get(i));
+                    }
+                } else if (message instanceof WrongAnswerMessage) {
+                    System.out.println();
+                    System.out.println("不正解！もう一度考えてください。");
+                } else if (message instanceof RoundEndMessage end) {
+                    System.out.println();
+                    if (end.winnerId() == 0) {
+                        System.out.println("全員不正解。正解は選択肢" + end.correctIndex() + "でした。");
+                    } else {
+                        System.out.println("Player" + end.winnerId() + "が正解！正解は選択肢" + end.correctIndex() + "でした。");
+                    }
+                } else if (message instanceof ScoreMessage score) {
+                    System.out.println("--- スコア ---");
+                    score.scores().forEach(e ->
+                        System.out.println("  Player" + e.playerId() + ": " + e.score() + "点"));
                 } else {
                     System.out.println();
                     System.out.println("Received server message: " + message);
@@ -182,6 +214,7 @@ public class Client {
     private static void printHelp() {
         System.out.println();
         System.out.println("Commands:");
+        System.out.println("  start            : start the game (host only)");
         System.out.println("  answer <number>  : send answer index to server");
         System.out.println("  disconnect       : disconnect from server");
         System.out.println("  quit / exit      : same as disconnect");
