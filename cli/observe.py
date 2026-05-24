@@ -65,9 +65,12 @@ def fmt_result(row: dict) -> Text:
     return Text("")
 
 
-def render_trace_table() -> None:
+def render_trace_table(reason: str = "") -> None:
+    if not trace_rows:
+        return
+
     table = Table(
-        title=f"Round {current_round} / CAS linearization trace",
+        title=f"Round {current_round} / CAS linearization trace{reason}",
         box=box.SIMPLE_HEAVY,
         show_lines=False,
     )
@@ -109,6 +112,7 @@ def handle(event: dict) -> None:
         r = event["round"]
         total = event["total"]
         q = event["question"]
+        render_trace_table(" / before next round")
         current_round = r
         trace_rows = {}
         console.rule(f"[bold cyan]Round {r} / {total}[/]")
@@ -153,6 +157,7 @@ def handle(event: dict) -> None:
         )
 
     elif kind == "game_end":
+        render_trace_table(" / before game end")
         winner = event.get("winner", "")
         if winner:
             console.rule()
