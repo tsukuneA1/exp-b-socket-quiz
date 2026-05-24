@@ -77,7 +77,7 @@ public class GameManager {
 
       while (!roundDone) {
         try {
-          handleEvent(inbox.take());
+          handleEvent(takeEvent());
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
           return;
@@ -99,7 +99,7 @@ public class GameManager {
   private boolean waitForStart() {
     while (true) {
       try {
-        GameEvent event = inbox.take();
+        GameEvent event = takeEvent();
         if (event instanceof GameEvent.Start start && lobby.isHost(start.session().getPlayerId())) {
           System.out.println("[GameManager] START received from host.");
           return true;
@@ -126,7 +126,7 @@ public class GameManager {
       broadcast(MessageType.QUESTION_CHUNK, new QuestionChunkMessage(ch).toBytes());
 
       try {
-        GameEvent event = inbox.poll(GameConfig.CHUNK_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        GameEvent event = pollEvent(GameConfig.CHUNK_INTERVAL_MS);
         if (event != null) {
           handleEvent(event);
           drainPendingEvents();
@@ -141,9 +141,31 @@ public class GameManager {
 
   private void drainPendingEvents() {
     GameEvent event;
-    while (!roundDone && (event = inbox.poll()) != null) {
+    while (!roundDone && (event = pollEvent()) != null) {
       handleEvent(event);
     }
+  }
+
+  private GameEvent takeEvent() throws InterruptedException {
+    GameEvent event = inbox.take();
+    emitQueueDequeue(event);
+    return event;
+  }
+
+  private GameEvent pollEvent(long timeoutMs) throws InterruptedException {
+    GameEvent event = inbox.poll(timeoutMs, TimeUnit.MILLISECONDS);
+    if (event != null) {
+      emitQueueDequeue(event);
+    }
+    return event;
+  }
+
+  private GameEvent pollEvent() {
+    GameEvent event = inbox.poll();
+    if (event != null) {
+      emitQueueDequeue(event);
+    }
+    return event;
   }
 
   private void handleEvent(GameEvent event) {
@@ -341,6 +363,29 @@ public class GameManager {
             + jsonString(result)
             + ",\"delta_us\":"
             + deltaUs
+            + "}");
+  }
+
+  private void emitQueueDequeue(GameEvent event) {
+    long dequeuedNs = System.nanoTime();
+    ClientSession session = event.session();
+    EventBus.emit(
+        "queue_dequeue",
+        "{"
+            + "\"seq\":"
+            + event.sequence()
+            + ",\"kind\":"
+            + jsonString(event.kind())
+            + ",\"player_id\":"
+            + session.getPlayerId()
+            + ",\"player\":"
+            + jsonString(session.getPlayerName())
+            + ",\"round\":"
+            + currentRound
+            + ",\"size\":"
+            + inbox.size()
+            + ",\"queue_wait_us\":"
+            + ((dequeuedNs - event.enqueuedNs()) / 1_000)
             + "}");
   }
 

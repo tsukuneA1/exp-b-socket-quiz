@@ -137,6 +137,21 @@ def handle(event: dict) -> None:
         row["delta_us"] = event.get("delta_us", 0)
         render_trace_table()
 
+    elif kind == "queue_enqueue":
+        console.print(
+            f"[dim]{ts()}[/] [blue]ENQUEUE[/] "
+            f"#{event['seq']} {event['kind']} "
+            f"{event.get('player', '')}  [dim]size={event['size']}[/]"
+        )
+
+    elif kind == "queue_dequeue":
+        console.print(
+            f"[dim]{ts()}[/] [magenta]DEQUEUE[/] "
+            f"#{event['seq']} {event['kind']} "
+            f"{event.get('player', '')}  "
+            f"[dim]wait={event['queue_wait_us']}us size={event['size']}[/]"
+        )
+
     elif kind == "answer_correct":
         pass
 

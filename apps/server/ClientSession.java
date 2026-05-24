@@ -8,8 +8,11 @@ import apps.shared.s2c.*;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicLong;
+import metrics.EventBus;
 
 public class ClientSession implements Runnable {
+  private static final AtomicLong EVENT_SEQUENCE = new AtomicLong(1);
 
   private final Socket socket;
   private final LobbyManager lobby;
@@ -72,13 +75,22 @@ public class ClientSession implements Runnable {
           case AnswerMessage answer -> {
             long receivedNs = System.nanoTime();
             System.out.println("ANSWER: playerId=" + playerId + " index=" + answer.index());
-            gameEvents.offer(new GameEvent.Answer(this, answer.index(), receivedNs));
+            GameEvent event =
+                new GameEvent.Answer(
+                    this,
+                    answer.index(),
+                    receivedNs,
+                    System.nanoTime(),
+                    EVENT_SEQUENCE.getAndIncrement());
+            enqueueGameEvent(event);
           }
           case StartMessage ignored -> {
             // ホストだけSTARTを受け付ける
             if (lobby.isHost(playerId)) {
               System.out.println("START: playerId=" + playerId + " [HOST]");
-              gameEvents.offer(new GameEvent.Start(this));
+              GameEvent event =
+                  new GameEvent.Start(this, System.nanoTime(), EVENT_SEQUENCE.getAndIncrement());
+              enqueueGameEvent(event);
             } else {
               System.out.println("START rejected: playerId=" + playerId + " is not host");
             }
@@ -97,5 +109,27 @@ public class ClientSession implements Runnable {
       }
       System.out.println("Session closed: playerId=" + playerId);
     }
+  }
+
+  private void enqueueGameEvent(GameEvent event) {
+    gameEvents.offer(event);
+    EventBus.emit(
+        "queue_enqueue",
+        "{"
+            + "\"seq\":"
+            + event.sequence()
+            + ",\"kind\":"
+            + jsonString(event.kind())
+            + ",\"player_id\":"
+            + playerId
+            + ",\"player\":"
+            + jsonString(playerName)
+            + ",\"size\":"
+            + gameEvents.size()
+            + "}");
+  }
+
+  private static String jsonString(String s) {
+    return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
 }
