@@ -16,4 +16,5 @@ public class MessageType {
     public static final int DISCONNECT_ACK   = 0x16;
     public static final int QUESTION_CHUNK   = 0x17;
     public static final int CONNECT_NG       = 0x18;
+    public static final int GAME_END         = 0x19; //ゲーム終了時
 }

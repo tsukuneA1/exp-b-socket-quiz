@@ -175,6 +175,35 @@ public class GameManager {
 
     private void sendFinalScore() {
         System.out.println("[GameManager] Sending final scores.");
+
+        int winnerId = getWinnerId();
+        broadcast(MessageType.GAME_END,
+        new GameEndMessage(winnerId).toBytes());
         broadcastScore();
+    }
+
+    private int getWinnerId() {
+        int winnerId = 0;
+        int maxScore = -1;
+        boolean tie = false;
+
+        for (ClientSession session : lobby.getSessions()) {
+            int playerId = session.getPlayerId();
+            int score = scores[playerId];
+
+            if (score > maxScore) {
+                maxScore = score;
+                winnerId = playerId;
+                tie = false;
+            } else if (score == maxScore) {
+                tie = true;
+            }
+        }
+
+        if (tie) {
+            return 0;
+        }
+
+        return winnerId;
     }
 }

@@ -21,6 +21,7 @@ import apps.shared.s2c.RoundEndMessage;
 import apps.shared.s2c.ScoreMessage;
 import apps.shared.s2c.WrongAnswerMessage;
 import apps.shared.s2c.ServerMessage;
+import apps.shared.s2c.GameEndMessage;
 
 public class Client {
 
@@ -50,6 +51,9 @@ public class Client {
 
             if (firstMessage instanceof ConnectAckMessage ack) {
                 System.out.println("Connected. Your playerId = " + ack.playerId());
+                if (ack.playerId() == 1) {
+                    System.out.println("You are the [HOST]. The game can be started by only [HOST]");
+                }
             } else if (firstMessage instanceof ConnectNgMessage ng) {
                 System.out.println("Connection failed. reason=" + ng.reason());
                 return;
@@ -93,45 +97,34 @@ public class Client {
                 continue;
             }
 
-            String[] parts = line.split("\\s+");
-            String command = parts[0].toLowerCase();
-
             try {
+                if (line.matches("\\d+")) {
+                    int answerIndex = Integer.parseInt(line);
+                    if (answerIndex < 0 || answerIndex > 255) {
+                    System.out.println("Answer index must be between 0 and 255.");
+                    continue;
+                }
+                byte[] body = new byte[] { (byte) answerIndex };
+                FrameEncoder.writeFrame(out, MessageType.ANSWER, body);
+                System.out.println("Sent ANSWER index=" + answerIndex);
+                continue;
+                }
+                String[] parts = line.split("\\s+");
+                String command = parts[0].toLowerCase();
                 switch (command) {
-                    case "answer" -> {
-                        if (parts.length != 2) {
-                            System.out.println("Usage: answer <number>");
-                            break;
-                        }
-
-                        int answerIndex = Integer.parseInt(parts[1]);
-
-                        if (answerIndex < 0 || answerIndex > 255) {
-                            System.out.println("Answer index must be between 0 and 255.");
-                            break;
-                        }
-
-                        byte[] body = new byte[] { (byte) answerIndex };
-                        FrameEncoder.writeFrame(out, MessageType.ANSWER, body);
-                        System.out.println("Sent ANSWER index=" + answerIndex);
-                    }
-
-                    case "start" -> {
+                    case "s" -> {
                         FrameEncoder.writeFrame(out, MessageType.START, new byte[0]);
                         System.out.println("Sent START");
                     }
-
-                    case "disconnect", "quit", "exit" -> {
+                    case "d" -> {
                         FrameEncoder.writeFrame(out, MessageType.DISCONNECT, new byte[0]);
                         System.out.println("Sent DISCONNECT");
                         running = false;
                     }
-
-                    case "help" -> printHelp();
-
+                    case "h" -> printHelp();
                     default -> {
                         System.out.println("Unknown command: " + command);
-                        System.out.println("Type 'help' to show available commands.");
+                        System.out.println("Type 'h' to show available commands.");
                     }
                 }
             } catch (NumberFormatException e) {
@@ -185,7 +178,19 @@ public class Client {
                     System.out.println("--- スコア ---");
                     score.scores().forEach(e ->
                         System.out.println("  Player" + e.playerId() + ": " + e.score() + "点"));
-                } else {
+                } else if (message instanceof GameEndMessage end) {
+                    System.out.println();
+                    System.out.println("=== ゲーム終了 ===");
+                    if (end.winnerId() == 0) {
+                        System.out.println("結果: 引き分けです。");
+                    } else {
+                        System.out.println("勝者: PlayerId=" + end.winnerId());
+                    }
+                    running = false;
+                    break;
+                }
+                
+                else {
                     System.out.println();
                     System.out.println("Received server message: " + message);
                 }
@@ -214,11 +219,11 @@ public class Client {
     private static void printHelp() {
         System.out.println();
         System.out.println("Commands:");
-        System.out.println("  start            : start the game (host only)");
-        System.out.println("  answer <number>  : send answer index to server");
-        System.out.println("  disconnect       : disconnect from server");
-        System.out.println("  quit / exit      : same as disconnect");
-        System.out.println("  help             : show this help");
+        System.out.println("  s         : start the game (host only)");
+        System.out.println("  <number>  : send answer index to server");
+        System.out.println("  d         : disconnect from server");
+        // System.out.println("  quit / exit      : same as disconnect");
+        System.out.println("  h         : show this help");
         System.out.println();
     }
 }

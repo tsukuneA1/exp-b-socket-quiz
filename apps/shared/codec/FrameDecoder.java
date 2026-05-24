@@ -14,6 +14,7 @@ import apps.shared.s2c.RoundEndMessage;
 import apps.shared.s2c.ScoreMessage;
 import apps.shared.s2c.ServerMessage;
 import apps.shared.s2c.WrongAnswerMessage;
+import apps.shared.s2c.GameEndMessage;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -51,6 +52,7 @@ public class FrameDecoder {
             case MessageType.WRONG_ANSWER     -> WrongAnswerMessage.parse(frame.body());
             case MessageType.ROUND_END        -> RoundEndMessage.parse(frame.body());
             case MessageType.SCORE            -> ScoreMessage.parse(frame.body());
+            case MessageType.GAME_END -> GameEndMessage.parse(frame.body()); //ゲーム終了時
             default -> throw new InvalidMessageException(
                     "Unknown S→C type: 0x" + Integer.toHexString(frame.type()));
         };
