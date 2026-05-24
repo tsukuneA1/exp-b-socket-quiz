@@ -16,13 +16,90 @@ HOST = "localhost"
 PORT = 9090
 
 console = Console()
+current_round = 0
+trace_rows: dict[str, dict] = {}
 
 
 def ts() -> str:
     return datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
 
+def row_key(event: dict) -> str:
+    return str(event.get("player_id", event.get("player", "")))
+
+
+def get_row(event: dict) -> dict:
+    key = row_key(event)
+    row = trace_rows.setdefault(
+        key,
+        {
+            "player": event.get("player", key),
+            "answer": event.get("answer", ""),
+            "recv_us": None,
+            "enter_us": None,
+            "cas_us": None,
+            "result": "",
+            "delta_us": 0,
+        },
+    )
+    row["player"] = event.get("player", row["player"])
+    row["answer"] = event.get("answer", row["answer"])
+    return row
+
+
+def fmt_us(value) -> str:
+    return "" if value is None else f"{value:,}"
+
+
+def fmt_result(row: dict) -> Text:
+    result = row.get("result", "")
+    delta = row.get("delta_us", 0)
+    if result == "SUCCESS":
+        return Text("SUCCESS", style="bold green")
+    if result == "CAS_FAIL":
+        return Text(f"CAS_FAIL +{delta}us", style="yellow")
+    if result == "LATE":
+        return Text(f"LATE +{delta}us", style="dim")
+    if result == "WRONG":
+        return Text("WRONG", style="red")
+    return Text("")
+
+
+def render_trace_table() -> None:
+    table = Table(
+        title=f"Round {current_round} / CAS linearization trace",
+        box=box.SIMPLE_HEAVY,
+        show_lines=False,
+    )
+    table.add_column("player", style="cyan")
+    table.add_column("answer", justify="right")
+    table.add_column("recv +us", justify="right")
+    table.add_column("enter +us", justify="right")
+    table.add_column("cas +us", justify="right")
+    table.add_column("result")
+
+    rows = sorted(
+        trace_rows.values(),
+        key=lambda r: (
+            r["recv_us"] is None,
+            r["recv_us"] if r["recv_us"] is not None else 0,
+            str(r["player"]),
+        ),
+    )
+    for row in rows:
+        table.add_row(
+            str(row["player"]),
+            str(row["answer"]),
+            fmt_us(row["recv_us"]),
+            fmt_us(row["enter_us"]),
+            fmt_us(row["cas_us"]),
+            fmt_result(row),
+        )
+    console.print(table)
+
+
 def handle(event: dict) -> None:
+    global current_round, trace_rows
     kind = event.get("event")
 
     if kind == "connected":
@@ -32,36 +109,41 @@ def handle(event: dict) -> None:
         r = event["round"]
         total = event["total"]
         q = event["question"]
+        current_round = r
+        trace_rows = {}
         console.rule(f"[bold cyan]Round {r} / {total}[/]")
         console.print(Panel(q, title="[yellow]Question[/]", border_style="yellow"))
 
+    elif kind == "answer_trace":
+        row = get_row(event)
+        stage = event["stage"]
+        if stage == "received":
+            row["recv_us"] = event["offset_us"]
+        elif stage == "enter":
+            row["enter_us"] = event["offset_us"]
+        elif stage == "cas_attempt":
+            row["cas_us"] = event["offset_us"]
+
+    elif kind == "answer_result":
+        row = get_row(event)
+        row["recv_us"] = event.get("recv_us")
+        row["enter_us"] = event.get("enter_us")
+        row["cas_us"] = event.get("cas_us")
+        row["result"] = event["result"]
+        row["delta_us"] = event.get("delta_us", 0)
+        render_trace_table()
+
     elif kind == "answer_correct":
-        player = event["player"]
-        ms = event["round_ms"]
-        console.print(
-            f"[dim]{ts()}[/] [bold green]CORRECT[/]  "
-            f"[cyan]{player}[/]  [dim]{ms} ms[/]"
-        )
+        pass
 
     elif kind == "answer_wrong":
-        player = event["player"]
-        console.print(f"[dim]{ts()}[/] [red]WRONG[/]    [cyan]{player}[/]")
+        pass
 
     elif kind == "answer_late":
-        player = event["player"]
-        delta = event["delta_us"]
-        console.print(
-            f"[dim]{ts()}[/] [dim]LATE[/]     [cyan]{player}[/]  "
-            f"[dim]+{delta} µs after winner[/]"
-        )
+        pass
 
     elif kind == "answer_cas_rejected":
-        player = event["player"]
-        delta = event["delta_us"]
-        console.print(
-            f"[dim]{ts()}[/] [yellow]CAS-MISS[/] [cyan]{player}[/]  "
-            f"[dim]+{delta} µs (lost race)[/]"
-        )
+        pass
 
     elif kind == "round_all_wrong":
         r = event["round"]

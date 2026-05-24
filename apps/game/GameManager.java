@@ -128,12 +128,18 @@ public class GameManager {
   }
 
   public void onAnswer(ClientSession session, int answerIndex, long receivedNs) {
+    long enterNs = System.nanoTime();
     String playerName = session.getPlayerName();
+    int playerId = session.getPlayerId();
+
+    emitAnswerTrace("received", session, answerIndex, receivedNs);
+    emitAnswerTrace("enter", session, answerIndex, enterNs);
 
     if (!accepting.get()) {
       long winNs = winnerAnswerNs.get();
       if (winNs > 0) {
         long deltaUs = (receivedNs - winNs) / 1_000;
+        emitAnswerResult("LATE", session, answerIndex, receivedNs, enterNs, 0, deltaUs);
         EventBus.emit(
             "answer_late",
             "{\"player\":" + jsonString(playerName) + ",\"delta_us\":" + deltaUs + "}");
@@ -141,21 +147,25 @@ public class GameManager {
       return;
     }
 
-    int playerId = session.getPlayerId();
     System.out.println("[GameManager] ANSWER: playerId=" + playerId + " index=" + answerIndex);
 
     if (answerIndex == currentCorrectIndex) {
+      long casAttemptNs = System.nanoTime();
+      emitAnswerTrace("cas_attempt", session, answerIndex, casAttemptNs);
+
       if (!accepting.compareAndSet(true, false)) {
         long winNs = winnerAnswerNs.get();
         long deltaUs = winNs > 0 ? (receivedNs - winNs) / 1_000 : 0;
+        emitAnswerResult("CAS_FAIL", session, answerIndex, receivedNs, enterNs, casAttemptNs, deltaUs);
         EventBus.emit(
             "answer_cas_rejected",
             "{\"player\":" + jsonString(playerName) + ",\"delta_us\":" + deltaUs + "}");
         return;
       }
 
-      winnerAnswerNs.set(receivedNs);
+      winnerAnswerNs.set(casAttemptNs);
       long roundMs = (receivedNs - roundStartNs.get()) / 1_000_000;
+      emitAnswerResult("SUCCESS", session, answerIndex, receivedNs, enterNs, casAttemptNs, 0);
 
       EventBus.emit(
           "answer_correct",
@@ -184,6 +194,7 @@ public class GameManager {
 
     } else {
       System.out.println("[GameManager] Wrong answer: playerId=" + playerId);
+      emitAnswerResult("WRONG", session, answerIndex, receivedNs, enterNs, 0, 0);
       EventBus.emit(
           "answer_wrong",
           "{\"player\":" + jsonString(playerName) + ",\"round\":" + currentRound + "}");
@@ -261,6 +272,61 @@ public class GameManager {
     }
 
     return tie ? null : winner;
+  }
+
+  private void emitAnswerTrace(String stage, ClientSession session, int answerIndex, long atNs) {
+    EventBus.emit(
+        "answer_trace",
+        "{"
+            + "\"round\":"
+            + currentRound
+            + ",\"player_id\":"
+            + session.getPlayerId()
+            + ",\"player\":"
+            + jsonString(session.getPlayerName())
+            + ",\"answer\":"
+            + answerIndex
+            + ",\"stage\":"
+            + jsonString(stage)
+            + ",\"offset_us\":"
+            + offsetUs(atNs)
+            + "}");
+  }
+
+  private void emitAnswerResult(
+      String result,
+      ClientSession session,
+      int answerIndex,
+      long receivedNs,
+      long enterNs,
+      long casAttemptNs,
+      long deltaUs) {
+    EventBus.emit(
+        "answer_result",
+        "{"
+            + "\"round\":"
+            + currentRound
+            + ",\"player_id\":"
+            + session.getPlayerId()
+            + ",\"player\":"
+            + jsonString(session.getPlayerName())
+            + ",\"answer\":"
+            + answerIndex
+            + ",\"recv_us\":"
+            + offsetUs(receivedNs)
+            + ",\"enter_us\":"
+            + offsetUs(enterNs)
+            + ",\"cas_us\":"
+            + (casAttemptNs > 0 ? offsetUs(casAttemptNs) : "null")
+            + ",\"result\":"
+            + jsonString(result)
+            + ",\"delta_us\":"
+            + deltaUs
+            + "}");
+  }
+
+  private long offsetUs(long atNs) {
+    return (atNs - roundStartNs.get()) / 1_000;
   }
 
   private static String jsonString(String s) {
