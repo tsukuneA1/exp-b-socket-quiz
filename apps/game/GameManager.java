@@ -117,8 +117,8 @@ public class GameManager {
         System.out.println("[GameManager] ANSWER: playerId=" + playerId + " index=" + answerIndex);
 
         if (answerIndex == currentCorrectIndex) {
+            if (!accepting.compareAndSet(true, false)) return;
             streaming.set(false);
-            accepting.set(false);
             scores[playerId]++;
 
             System.out.println("[GameManager] Correct! playerId=" + playerId);
