@@ -15,3 +15,9 @@ client-port:
 
 test:
 	mvn test
+
+fmt:
+	mvn spotless:apply
+
+lint:
+	mvn spotless:check
