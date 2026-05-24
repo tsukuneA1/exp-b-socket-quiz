@@ -7,7 +7,8 @@ import apps.shared.s2c.*;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -16,6 +17,7 @@ import metrics.EventBus;
 public class GameManager {
 
   private final LobbyManager lobby;
+  private final BlockingQueue<GameEvent> inbox;
   private final List<Question> questions = Question.ALL;
 
   private final AtomicBoolean accepting = new AtomicBoolean(false);
@@ -26,29 +28,19 @@ public class GameManager {
   private volatile int currentCorrectIndex = 0;
   private volatile int currentRound = 0;
 
-  private final Object roundLock = new Object();
   private volatile boolean roundDone = false;
-
-  private final CountDownLatch startLatch = new CountDownLatch(1);
 
   private final AtomicLong roundStartNs = new AtomicLong(0);
   private final AtomicLong winnerAnswerNs = new AtomicLong(0);
 
-  public GameManager(LobbyManager lobby) {
+  public GameManager(LobbyManager lobby, BlockingQueue<GameEvent> inbox) {
     this.lobby = lobby;
-  }
-
-  public void onStart() {
-    System.out.println("[GameManager] START received from host.");
-    startLatch.countDown();
+    this.inbox = inbox;
   }
 
   public void start() {
     System.out.println("[GameManager] Waiting for host to send START...");
-    try {
-      startLatch.await();
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
+    if (!waitForStart()) {
       return;
     }
 
@@ -79,16 +71,16 @@ public class GameManager {
               + "}");
 
       broadcast(MessageType.QUESTION_OPTIONS, new QuestionOptionsMessage(q.options()).toBytes());
-      streamQuestionText(q.text());
+      if (!streamQuestionText(q.text())) {
+        return;
+      }
 
-      synchronized (roundLock) {
-        while (!roundDone) {
-          try {
-            roundLock.wait();
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-          }
+      while (!roundDone) {
+        try {
+          handleEvent(takeEvent());
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          return;
         }
       }
 
@@ -104,7 +96,22 @@ public class GameManager {
     System.out.println("[GameManager] Game over.");
   }
 
-  private void streamQuestionText(String text) {
+  private boolean waitForStart() {
+    while (true) {
+      try {
+        GameEvent event = takeEvent();
+        if (event instanceof GameEvent.Start start && lobby.isHost(start.session().getPlayerId())) {
+          System.out.println("[GameManager] START received from host.");
+          return true;
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return false;
+      }
+    }
+  }
+
+  private boolean streamQuestionText(String text) {
     streaming.set(true);
     accepting.set(true);
 
@@ -119,15 +126,58 @@ public class GameManager {
       broadcast(MessageType.QUESTION_CHUNK, new QuestionChunkMessage(ch).toBytes());
 
       try {
-        Thread.sleep(GameConfig.CHUNK_INTERVAL_MS);
+        GameEvent event = pollEvent(GameConfig.CHUNK_INTERVAL_MS);
+        if (event != null) {
+          handleEvent(event);
+          drainPendingEvents();
+        }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
-        return;
+        return false;
       }
+    }
+    return true;
+  }
+
+  private void drainPendingEvents() {
+    GameEvent event;
+    while (!roundDone && (event = pollEvent()) != null) {
+      handleEvent(event);
     }
   }
 
-  public void onAnswer(ClientSession session, int answerIndex, long receivedNs) {
+  private GameEvent takeEvent() throws InterruptedException {
+    GameEvent event = inbox.take();
+    emitQueueDequeue(event);
+    return event;
+  }
+
+  private GameEvent pollEvent(long timeoutMs) throws InterruptedException {
+    GameEvent event = inbox.poll(timeoutMs, TimeUnit.MILLISECONDS);
+    if (event != null) {
+      emitQueueDequeue(event);
+    }
+    return event;
+  }
+
+  private GameEvent pollEvent() {
+    GameEvent event = inbox.poll();
+    if (event != null) {
+      emitQueueDequeue(event);
+    }
+    return event;
+  }
+
+  private void handleEvent(GameEvent event) {
+    switch (event) {
+      case GameEvent.Start ignored ->
+          System.out.println("[GameManager] START ignored: already running.");
+      case GameEvent.Answer answer ->
+          handleAnswer(answer.session(), answer.answerIndex(), answer.receivedNs());
+    }
+  }
+
+  private void handleAnswer(ClientSession session, int answerIndex, long receivedNs) {
     long enterNs = System.nanoTime();
     String playerName = session.getPlayerName();
     int playerId = session.getPlayerId();
@@ -156,7 +206,8 @@ public class GameManager {
       if (!accepting.compareAndSet(true, false)) {
         long winNs = winnerAnswerNs.get();
         long deltaUs = winNs > 0 ? (receivedNs - winNs) / 1_000 : 0;
-        emitAnswerResult("CAS_FAIL", session, answerIndex, receivedNs, enterNs, casAttemptNs, deltaUs);
+        emitAnswerResult(
+            "CAS_FAIL", session, answerIndex, receivedNs, enterNs, casAttemptNs, deltaUs);
         EventBus.emit(
             "answer_cas_rejected",
             "{\"player\":" + jsonString(playerName) + ",\"delta_us\":" + deltaUs + "}");
@@ -186,11 +237,7 @@ public class GameManager {
           MessageType.ROUND_END,
           new RoundEndMessage(playerId, currentCorrectIndex, playerName).toBytes());
       broadcastScore();
-
-      synchronized (roundLock) {
-        roundDone = true;
-        roundLock.notifyAll();
-      }
+      roundDone = true;
 
     } else {
       System.out.println("[GameManager] Wrong answer: playerId=" + playerId);
@@ -206,15 +253,10 @@ public class GameManager {
         accepting.set(false);
         long roundMs = (receivedNs - roundStartNs.get()) / 1_000_000;
         EventBus.emit(
-            "round_all_wrong",
-            "{\"round\":" + currentRound + ",\"round_ms\":" + roundMs + "}");
+            "round_all_wrong", "{\"round\":" + currentRound + ",\"round_ms\":" + roundMs + "}");
         System.out.println("[GameManager] All players answered wrong. Moving to next round.");
         broadcast(MessageType.ROUND_END, new RoundEndMessage(0, currentCorrectIndex, "").toBytes());
-
-        synchronized (roundLock) {
-          roundDone = true;
-          roundLock.notifyAll();
-        }
+        roundDone = true;
       }
     }
   }
@@ -249,8 +291,7 @@ public class GameManager {
     String winnerName = winner != null ? winner.getPlayerName() : "";
 
     EventBus.emit(
-        "game_end",
-        "{\"winner\":" + jsonString(winnerName) + ",\"winner_id\":" + winnerId + "}");
+        "game_end", "{\"winner\":" + jsonString(winnerName) + ",\"winner_id\":" + winnerId + "}");
 
     broadcast(MessageType.GAME_END, new GameEndMessage(winnerId, winnerName).toBytes());
   }
@@ -322,6 +363,29 @@ public class GameManager {
             + jsonString(result)
             + ",\"delta_us\":"
             + deltaUs
+            + "}");
+  }
+
+  private void emitQueueDequeue(GameEvent event) {
+    long dequeuedNs = System.nanoTime();
+    ClientSession session = event.session();
+    EventBus.emit(
+        "queue_dequeue",
+        "{"
+            + "\"seq\":"
+            + event.sequence()
+            + ",\"kind\":"
+            + jsonString(event.kind())
+            + ",\"player_id\":"
+            + session.getPlayerId()
+            + ",\"player\":"
+            + jsonString(session.getPlayerName())
+            + ",\"round\":"
+            + currentRound
+            + ",\"size\":"
+            + inbox.size()
+            + ",\"queue_wait_us\":"
+            + ((dequeuedNs - event.enqueuedNs()) / 1_000)
             + "}");
   }
 

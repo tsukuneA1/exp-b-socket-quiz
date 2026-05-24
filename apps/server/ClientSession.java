@@ -1,23 +1,30 @@
 package apps.server;
 
+import apps.game.GameEvent;
 import apps.game.LobbyManager;
 import apps.shared.c2s.*;
 import apps.shared.codec.*;
 import apps.shared.s2c.*;
 import java.io.*;
 import java.net.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicLong;
+import metrics.EventBus;
 
 public class ClientSession implements Runnable {
+  private static final AtomicLong EVENT_SEQUENCE = new AtomicLong(1);
 
   private final Socket socket;
   private final LobbyManager lobby;
+  private final BlockingQueue<GameEvent> gameEvents;
   private int playerId;
   private String playerName;
   private DataOutputStream out;
 
-  public ClientSession(Socket socket, LobbyManager lobby) {
+  public ClientSession(Socket socket, LobbyManager lobby, BlockingQueue<GameEvent> gameEvents) {
     this.socket = socket;
     this.lobby = lobby;
+    this.gameEvents = gameEvents;
   }
 
   public int getPlayerId() {
@@ -68,17 +75,22 @@ public class ClientSession implements Runnable {
           case AnswerMessage answer -> {
             long receivedNs = System.nanoTime();
             System.out.println("ANSWER: playerId=" + playerId + " index=" + answer.index());
-            if (lobby.getGameManager() != null) {
-              lobby.getGameManager().onAnswer(this, answer.index(), receivedNs);
-            }
+            GameEvent event =
+                new GameEvent.Answer(
+                    this,
+                    answer.index(),
+                    receivedNs,
+                    System.nanoTime(),
+                    EVENT_SEQUENCE.getAndIncrement());
+            enqueueGameEvent(event);
           }
           case StartMessage ignored -> {
             // ホストだけSTARTを受け付ける
             if (lobby.isHost(playerId)) {
               System.out.println("START: playerId=" + playerId + " [HOST]");
-              if (lobby.getGameManager() != null) {
-                lobby.getGameManager().onStart();
-              }
+              GameEvent event =
+                  new GameEvent.Start(this, System.nanoTime(), EVENT_SEQUENCE.getAndIncrement());
+              enqueueGameEvent(event);
             } else {
               System.out.println("START rejected: playerId=" + playerId + " is not host");
             }
@@ -97,5 +109,27 @@ public class ClientSession implements Runnable {
       }
       System.out.println("Session closed: playerId=" + playerId);
     }
+  }
+
+  private void enqueueGameEvent(GameEvent event) {
+    gameEvents.offer(event);
+    EventBus.emit(
+        "queue_enqueue",
+        "{"
+            + "\"seq\":"
+            + event.sequence()
+            + ",\"kind\":"
+            + jsonString(event.kind())
+            + ",\"player_id\":"
+            + playerId
+            + ",\"player\":"
+            + jsonString(playerName)
+            + ",\"size\":"
+            + gameEvents.size()
+            + "}");
+  }
+
+  private static String jsonString(String s) {
+    return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
 }

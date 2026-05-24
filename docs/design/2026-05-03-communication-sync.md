@@ -183,16 +183,16 @@ try {
 
 ## 3. 実装マイルストーン
 
-| フェーズ | 実装内容 | 理解目標 |
-|---|---|---|
-| 1 | 現状のecho通信を読んで動かす | TCPコネクション確立・`readLine()`が改行区切りフレーミングであることを理解する |
-| 2 | バイナリフレーミング実装（type+length+body） | TCPがストリームである意味・length-prefixedフレーミングの必要性 |
-| 3 | マルチクライアント対応（スレッド追加） | スレッドのライフサイクル・共有オブジェクトへのアクセス競合 |
-| 4 | `BlockingQueue` によるスレッド間通信 | Producer-Consumerパターン・スレッドをまたぐ安全なデータ受け渡し |
-| 5 | `synchronized` で早押し判定 | race condition・`synchronized` と `volatile` の違い |
-| 6 | 切断ハンドリング | `IOException`・リソースリーク・`finally` によるクローズ保証 |
-| 7 | （発展）アプリ層ハートビート（PING/PONG） | TCP keepaliveとの違い・アプリ層での死活監視 |
-| 8 | （発展）NIO + `Selector` に置き換え | I/O多重化・ノンブロッキングI/O・Node.jsのイベントループとの対比 |
+| フェーズ | 状態 | 実装内容 | 理解目標 |
+|---|---|---|---|
+| 1 | 完了 | 現状のecho通信を読んで動かす | TCPコネクション確立・`readLine()`が改行区切りフレーミングであることを理解する |
+| 2 | 完了 | バイナリフレーミング実装（type+length+body） | TCPがストリームである意味・length-prefixedフレーミングの必要性 |
+| 3 | 完了 | マルチクライアント対応（スレッド追加） | スレッドのライフサイクル・共有オブジェクトへのアクセス競合 |
+| 4 | 完了 | `BlockingQueue` によるスレッド間通信 | Producer-Consumerパターン・スレッドをまたぐ安全なデータ受け渡し |
+| 5 | 完了（AtomicBooleanで実装） | `synchronized` で早押し判定 | race condition・`synchronized` と `volatile` の違い |
+| 6 | 完了 | 切断ハンドリング | `IOException`・リソースリーク・`finally` によるクローズ保証 |
+| 7 | 未着手 | （発展）アプリ層ハートビート（PING/PONG） | TCP keepaliveとの違い・アプリ層での死活監視 |
+| 8 | 未着手 | （発展）NIO + `Selector` に置き換え | I/O多重化・ノンブロッキングI/O・Node.jsのイベントループとの対比 |
 
 ---
 
