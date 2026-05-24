@@ -12,7 +12,7 @@ public class LobbyManager {
     private final AtomicInteger nextPlayerId = new AtomicInteger(1);
     private GameManager gameManager;
 
-    private volatile int hostPlayerId = -1;
+    private final AtomicInteger hostPlayerId = new AtomicInteger(-1);
 
     public boolean isFull() {
         return sessions.size() >= GameConfig.MAX_PLAYERS;
@@ -24,15 +24,14 @@ public class LobbyManager {
 
     public int assignId() {
         int id = nextPlayerId.getAndIncrement();
-        if (hostPlayerId == -1) {
-            hostPlayerId = id;
+        if (hostPlayerId.compareAndSet(-1, id)) {
             System.out.println("[LobbyManager] Host assigned: playerId=" + id);
         }
         return id;
     }
 
     public boolean isHost(int playerId) {
-        return playerId == hostPlayerId;
+        return playerId == hostPlayerId.get();
     }
 
     public void add(ClientSession session) {
