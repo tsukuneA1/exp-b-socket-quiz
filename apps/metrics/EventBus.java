@@ -16,7 +16,8 @@ public class EventBus {
                 System.out.println("EventBus listening on :" + port);
                 while (true) {
                   Socket s = ss.accept();
-                  PrintWriter w = new PrintWriter(new OutputStreamWriter(s.getOutputStream()), true);
+                  PrintWriter w =
+                      new PrintWriter(new OutputStreamWriter(s.getOutputStream()), true);
                   observers.add(w);
                   System.out.println("Observer connected: " + s.getRemoteSocketAddress());
                   w.println("{\"event\":\"connected\"}");

@@ -1,23 +1,27 @@
 package apps.server;
 
+import apps.game.GameEvent;
 import apps.game.LobbyManager;
 import apps.shared.c2s.*;
 import apps.shared.codec.*;
 import apps.shared.s2c.*;
 import java.io.*;
 import java.net.*;
+import java.util.concurrent.BlockingQueue;
 
 public class ClientSession implements Runnable {
 
   private final Socket socket;
   private final LobbyManager lobby;
+  private final BlockingQueue<GameEvent> gameEvents;
   private int playerId;
   private String playerName;
   private DataOutputStream out;
 
-  public ClientSession(Socket socket, LobbyManager lobby) {
+  public ClientSession(Socket socket, LobbyManager lobby, BlockingQueue<GameEvent> gameEvents) {
     this.socket = socket;
     this.lobby = lobby;
+    this.gameEvents = gameEvents;
   }
 
   public int getPlayerId() {
@@ -68,17 +72,13 @@ public class ClientSession implements Runnable {
           case AnswerMessage answer -> {
             long receivedNs = System.nanoTime();
             System.out.println("ANSWER: playerId=" + playerId + " index=" + answer.index());
-            if (lobby.getGameManager() != null) {
-              lobby.getGameManager().onAnswer(this, answer.index(), receivedNs);
-            }
+            gameEvents.offer(new GameEvent.Answer(this, answer.index(), receivedNs));
           }
           case StartMessage ignored -> {
             // ホストだけSTARTを受け付ける
             if (lobby.isHost(playerId)) {
               System.out.println("START: playerId=" + playerId + " [HOST]");
-              if (lobby.getGameManager() != null) {
-                lobby.getGameManager().onStart();
-              }
+              gameEvents.offer(new GameEvent.Start(this));
             } else {
               System.out.println("START rejected: playerId=" + playerId + " is not host");
             }
