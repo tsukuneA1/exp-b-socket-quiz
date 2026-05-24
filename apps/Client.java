@@ -172,20 +172,18 @@ public class Client {
             System.out.println("全員不正解。正解は選択肢" + end.correctIndex() + "でした。");
           } else {
             System.out.println(
-                "Player" + end.winnerId() + "が正解！正解は選択肢" + end.correctIndex() + "でした。");
+                end.winnerName() + "が正解！正解は選択肢" + end.correctIndex() + "でした。");
           }
         } else if (message instanceof ScoreMessage score) {
           System.out.println("--- スコア ---");
-          score
-              .scores()
-              .forEach(e -> System.out.println("  Player" + e.playerId() + ": " + e.score() + "点"));
+          score.scores().forEach(e -> System.out.println("  " + e.playerName() + ": " + e.score() + "点"));
         } else if (message instanceof GameEndMessage end) {
           System.out.println();
           System.out.println("=== ゲーム終了 ===");
           if (end.winnerId() == 0) {
             System.out.println("結果: 引き分けです。");
           } else {
-            System.out.println("勝者: PlayerId=" + end.winnerId());
+            System.out.println("勝者: " + end.winnerName());
           }
           running = false;
           break;

@@ -24,6 +24,10 @@ public class ClientSession implements Runnable {
     return playerId;
   }
 
+  public String getPlayerName() {
+    return playerName;
+  }
+
   public DataOutputStream getOut() {
     return out;
   }

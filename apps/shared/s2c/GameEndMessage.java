@@ -1,23 +1,31 @@
 package apps.shared.s2c;
 
 import apps.shared.codec.InvalidMessageException;
+import java.nio.charset.StandardCharsets;
 
-public record GameEndMessage(int winnerId) implements ServerMessage {
+public record GameEndMessage(int winnerId, String winnerName) implements ServerMessage {
   public GameEndMessage {
-    if (winnerId < 0 || winnerId > 255) {
+    if (winnerId < 0 || winnerId > 255)
       throw new InvalidMessageException("GAME_END winnerId out of byte range: " + winnerId);
-    }
+    if (winnerName == null) winnerName = "";
   }
 
   public static GameEndMessage parse(byte[] body) {
-    if (body.length != 1) {
-      throw new InvalidMessageException("GAME_END body must be 1 byte, got " + body.length);
-    }
-
-    return new GameEndMessage(body[0] & 0xFF);
+    if (body.length < 2) throw new InvalidMessageException("GAME_END body too short");
+    int winnerId = body[0] & 0xFF;
+    int nameLen = body[1] & 0xFF;
+    if (body.length != 2 + nameLen)
+      throw new InvalidMessageException("GAME_END body length mismatch");
+    String winnerName = new String(body, 2, nameLen, StandardCharsets.UTF_8);
+    return new GameEndMessage(winnerId, winnerName);
   }
 
   public byte[] toBytes() {
-    return new byte[] {(byte) winnerId};
+    byte[] nameBytes = winnerName.getBytes(StandardCharsets.UTF_8);
+    byte[] body = new byte[2 + nameBytes.length];
+    body[0] = (byte) winnerId;
+    body[1] = (byte) nameBytes.length;
+    System.arraycopy(nameBytes, 0, body, 2, nameBytes.length);
+    return body;
   }
 }

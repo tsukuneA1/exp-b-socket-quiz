@@ -119,9 +119,11 @@ public class GameManager {
       streaming.set(false);
       scores[playerId]++;
 
+      String playerName = session.getPlayerName();
       System.out.println("[GameManager] Correct! playerId=" + playerId);
       broadcast(
-          MessageType.ROUND_END, new RoundEndMessage(playerId, currentCorrectIndex).toBytes());
+          MessageType.ROUND_END,
+          new RoundEndMessage(playerId, currentCorrectIndex, playerName).toBytes());
       broadcastScore();
 
       synchronized (roundLock) {
@@ -138,7 +140,8 @@ public class GameManager {
         streaming.set(false);
         accepting.set(false);
         System.out.println("[GameManager] All players answered wrong. Moving to next round.");
-        broadcast(MessageType.ROUND_END, new RoundEndMessage(0, currentCorrectIndex).toBytes());
+        broadcast(
+            MessageType.ROUND_END, new RoundEndMessage(0, currentCorrectIndex, "").toBytes());
 
         synchronized (roundLock) {
           roundDone = true;
@@ -165,7 +168,7 @@ public class GameManager {
   private void broadcastScore() {
     List<ScoreEntry> entries =
         lobby.getSessions().stream()
-            .map(s -> new ScoreEntry(s.getPlayerId(), scores[s.getPlayerId()]))
+            .map(s -> new ScoreEntry(s.getPlayerId(), s.getPlayerName(), scores[s.getPlayerId()]))
             .toList();
     broadcast(MessageType.SCORE, new ScoreMessage(entries).toBytes());
   }
@@ -173,33 +176,29 @@ public class GameManager {
   private void sendFinalScore() {
     System.out.println("[GameManager] Sending final scores.");
 
-    int winnerId = getWinnerId();
-    broadcast(MessageType.GAME_END, new GameEndMessage(winnerId).toBytes());
     broadcastScore();
+    ClientSession winner = getWinner();
+    int winnerId = winner != null ? winner.getPlayerId() : 0;
+    String winnerName = winner != null ? winner.getPlayerName() : "";
+    broadcast(MessageType.GAME_END, new GameEndMessage(winnerId, winnerName).toBytes());
   }
 
-  private int getWinnerId() {
-    int winnerId = 0;
+  private ClientSession getWinner() {
+    ClientSession winner = null;
     int maxScore = -1;
     boolean tie = false;
 
     for (ClientSession session : lobby.getSessions()) {
-      int playerId = session.getPlayerId();
-      int score = scores[playerId];
-
+      int score = scores[session.getPlayerId()];
       if (score > maxScore) {
         maxScore = score;
-        winnerId = playerId;
+        winner = session;
         tie = false;
       } else if (score == maxScore) {
         tie = true;
       }
     }
 
-    if (tie) {
-      return 0;
-    }
-
-    return winnerId;
+    return tie ? null : winner;
   }
 }
