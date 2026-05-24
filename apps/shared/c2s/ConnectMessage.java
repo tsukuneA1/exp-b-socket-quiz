@@ -9,7 +9,8 @@ public record ConnectMessage(String playerName) implements ClientMessage {
   public ConnectMessage {
     if (playerName == null || playerName.isBlank())
       throw new InvalidMessageException("CONNECT playerName must not be blank");
-    if (playerName.getBytes(StandardCharsets.UTF_8).length > MAX_NAME_BYTES) throw new InvalidMessageException("playerName must not be larger than 16 bytes");
+    if (playerName.getBytes(StandardCharsets.UTF_8).length > MAX_NAME_BYTES)
+      throw new InvalidMessageException("playerName must not be larger than 16 bytes");
   }
 
   public static ConnectMessage parse(byte[] body) {

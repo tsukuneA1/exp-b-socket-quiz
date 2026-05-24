@@ -171,12 +171,13 @@ public class Client {
           if (end.winnerId() == 0) {
             System.out.println("全員不正解。正解は選択肢" + end.correctIndex() + "でした。");
           } else {
-            System.out.println(
-                end.winnerName() + "が正解！正解は選択肢" + end.correctIndex() + "でした。");
+            System.out.println(end.winnerName() + "が正解！正解は選択肢" + end.correctIndex() + "でした。");
           }
         } else if (message instanceof ScoreMessage score) {
           System.out.println("--- スコア ---");
-          score.scores().forEach(e -> System.out.println("  " + e.playerName() + ": " + e.score() + "点"));
+          score
+              .scores()
+              .forEach(e -> System.out.println("  " + e.playerName() + ": " + e.score() + "点"));
         } else if (message instanceof GameEndMessage end) {
           System.out.println();
           System.out.println("=== ゲーム終了 ===");

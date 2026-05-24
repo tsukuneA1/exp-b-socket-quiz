@@ -17,7 +17,8 @@ public record ScoreMessage(List<ScoreEntry> scores) implements ServerMessage {
     List<ScoreEntry> scores = new ArrayList<>(numPlayers);
     int pos = 1;
     for (int n = 0; n < numPlayers; n++) {
-      if (pos + 4 > body.length) throw new InvalidMessageException("SCORE body too short for entry");
+      if (pos + 4 > body.length)
+        throw new InvalidMessageException("SCORE body too short for entry");
       int playerId = body[pos] & 0xFF;
       int score = ((body[pos + 1] & 0xFF) << 8) | (body[pos + 2] & 0xFF);
       int nameLen = body[pos + 3] & 0xFF;

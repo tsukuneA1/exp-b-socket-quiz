@@ -140,8 +140,7 @@ public class GameManager {
         streaming.set(false);
         accepting.set(false);
         System.out.println("[GameManager] All players answered wrong. Moving to next round.");
-        broadcast(
-            MessageType.ROUND_END, new RoundEndMessage(0, currentCorrectIndex, "").toBytes());
+        broadcast(MessageType.ROUND_END, new RoundEndMessage(0, currentCorrectIndex, "").toBytes());
 
         synchronized (roundLock) {
           roundDone = true;
