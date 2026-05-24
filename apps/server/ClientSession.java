@@ -66,9 +66,10 @@ public class ClientSession implements Runnable {
             return;
           }
           case AnswerMessage answer -> {
+            long receivedNs = System.nanoTime();
             System.out.println("ANSWER: playerId=" + playerId + " index=" + answer.index());
             if (lobby.getGameManager() != null) {
-              lobby.getGameManager().onAnswer(this, answer.index());
+              lobby.getGameManager().onAnswer(this, answer.index(), receivedNs);
             }
           }
           case StartMessage ignored -> {

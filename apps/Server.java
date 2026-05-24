@@ -9,12 +9,14 @@ import apps.shared.s2c.ConnectNgMessage;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import metrics.EventBus;
 
 public class Server {
   public static final int DEFAULT_PORT = 8080;
 
   public static void main(String[] args) throws IOException {
     int port = (args.length > 0) ? Integer.parseInt(args[0]) : DEFAULT_PORT;
+    EventBus.start(9090);
     LobbyManager lobby = new LobbyManager();
     GameManager gameManager = new GameManager(lobby);
     lobby.setGameManager(gameManager);

@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import metrics.EventBus;
 
 public class GameManager {
 
@@ -17,17 +19,20 @@ public class GameManager {
   private final List<Question> questions = Question.ALL;
 
   private final AtomicBoolean accepting = new AtomicBoolean(false);
-
   private final AtomicBoolean streaming = new AtomicBoolean(false);
 
   private final int[] scores = new int[GameConfig.MAX_PLAYERS + 1];
   private final AtomicInteger wrongCount = new AtomicInteger(0);
   private volatile int currentCorrectIndex = 0;
+  private volatile int currentRound = 0;
 
   private final Object roundLock = new Object();
   private volatile boolean roundDone = false;
 
   private final CountDownLatch startLatch = new CountDownLatch(1);
+
+  private final AtomicLong roundStartNs = new AtomicLong(0);
+  private final AtomicLong winnerAnswerNs = new AtomicLong(0);
 
   public GameManager(LobbyManager lobby) {
     this.lobby = lobby;
@@ -51,14 +56,29 @@ public class GameManager {
 
     for (int i = 0; i < questions.size(); i++) {
       Question q = questions.get(i);
-      System.out.println("[GameManager] Round " + (i + 1) + ": " + q.text());
+      currentRound = i + 1;
+      System.out.println("[GameManager] Round " + currentRound + ": " + q.text());
 
       currentCorrectIndex = q.correctIndex();
       wrongCount.set(0);
       roundDone = false;
+      winnerAnswerNs.set(0);
+      roundStartNs.set(System.nanoTime());
+
+      EventBus.emit(
+          "round_start",
+          "{"
+              + "\"round\":"
+              + currentRound
+              + ","
+              + "\"total\":"
+              + questions.size()
+              + ","
+              + "\"question\":"
+              + jsonString(q.text())
+              + "}");
 
       broadcast(MessageType.QUESTION_OPTIONS, new QuestionOptionsMessage(q.options()).toBytes());
-
       streamQuestionText(q.text());
 
       synchronized (roundLock) {
@@ -92,7 +112,6 @@ public class GameManager {
 
     for (int cp : codePoints) {
       if (!streaming.get()) {
-
         System.out.println("[GameManager] Streaming stopped by answer.");
         break;
       }
@@ -108,18 +127,60 @@ public class GameManager {
     }
   }
 
-  public void onAnswer(ClientSession session, int answerIndex) {
-    if (!accepting.get()) return;
-
+  public void onAnswer(ClientSession session, int answerIndex, long receivedNs) {
+    long enterNs = System.nanoTime();
+    String playerName = session.getPlayerName();
     int playerId = session.getPlayerId();
+
+    emitAnswerTrace("received", session, answerIndex, receivedNs);
+    emitAnswerTrace("enter", session, answerIndex, enterNs);
+
+    if (!accepting.get()) {
+      long winNs = winnerAnswerNs.get();
+      if (winNs > 0) {
+        long deltaUs = (receivedNs - winNs) / 1_000;
+        emitAnswerResult("LATE", session, answerIndex, receivedNs, enterNs, 0, deltaUs);
+        EventBus.emit(
+            "answer_late",
+            "{\"player\":" + jsonString(playerName) + ",\"delta_us\":" + deltaUs + "}");
+      }
+      return;
+    }
+
     System.out.println("[GameManager] ANSWER: playerId=" + playerId + " index=" + answerIndex);
 
     if (answerIndex == currentCorrectIndex) {
-      if (!accepting.compareAndSet(true, false)) return;
+      long casAttemptNs = System.nanoTime();
+      emitAnswerTrace("cas_attempt", session, answerIndex, casAttemptNs);
+
+      if (!accepting.compareAndSet(true, false)) {
+        long winNs = winnerAnswerNs.get();
+        long deltaUs = winNs > 0 ? (receivedNs - winNs) / 1_000 : 0;
+        emitAnswerResult("CAS_FAIL", session, answerIndex, receivedNs, enterNs, casAttemptNs, deltaUs);
+        EventBus.emit(
+            "answer_cas_rejected",
+            "{\"player\":" + jsonString(playerName) + ",\"delta_us\":" + deltaUs + "}");
+        return;
+      }
+
+      winnerAnswerNs.set(casAttemptNs);
+      long roundMs = (receivedNs - roundStartNs.get()) / 1_000_000;
+      emitAnswerResult("SUCCESS", session, answerIndex, receivedNs, enterNs, casAttemptNs, 0);
+
+      EventBus.emit(
+          "answer_correct",
+          "{"
+              + "\"player\":"
+              + jsonString(playerName)
+              + ",\"round\":"
+              + currentRound
+              + ",\"round_ms\":"
+              + roundMs
+              + "}");
+
       streaming.set(false);
       scores[playerId]++;
 
-      String playerName = session.getPlayerName();
       System.out.println("[GameManager] Correct! playerId=" + playerId);
       broadcast(
           MessageType.ROUND_END,
@@ -133,12 +194,20 @@ public class GameManager {
 
     } else {
       System.out.println("[GameManager] Wrong answer: playerId=" + playerId);
+      emitAnswerResult("WRONG", session, answerIndex, receivedNs, enterNs, 0, 0);
+      EventBus.emit(
+          "answer_wrong",
+          "{\"player\":" + jsonString(playerName) + ",\"round\":" + currentRound + "}");
       sendTo(session.getOut(), MessageType.WRONG_ANSWER, new WrongAnswerMessage().toBytes());
 
       int wrong = wrongCount.incrementAndGet();
       if (wrong >= lobby.size()) {
         streaming.set(false);
         accepting.set(false);
+        long roundMs = (receivedNs - roundStartNs.get()) / 1_000_000;
+        EventBus.emit(
+            "round_all_wrong",
+            "{\"round\":" + currentRound + ",\"round_ms\":" + roundMs + "}");
         System.out.println("[GameManager] All players answered wrong. Moving to next round.");
         broadcast(MessageType.ROUND_END, new RoundEndMessage(0, currentCorrectIndex, "").toBytes());
 
@@ -174,11 +243,15 @@ public class GameManager {
 
   private void sendFinalScore() {
     System.out.println("[GameManager] Sending final scores.");
-
     broadcastScore();
     ClientSession winner = getWinner();
     int winnerId = winner != null ? winner.getPlayerId() : 0;
     String winnerName = winner != null ? winner.getPlayerName() : "";
+
+    EventBus.emit(
+        "game_end",
+        "{\"winner\":" + jsonString(winnerName) + ",\"winner_id\":" + winnerId + "}");
+
     broadcast(MessageType.GAME_END, new GameEndMessage(winnerId, winnerName).toBytes());
   }
 
@@ -199,5 +272,64 @@ public class GameManager {
     }
 
     return tie ? null : winner;
+  }
+
+  private void emitAnswerTrace(String stage, ClientSession session, int answerIndex, long atNs) {
+    EventBus.emit(
+        "answer_trace",
+        "{"
+            + "\"round\":"
+            + currentRound
+            + ",\"player_id\":"
+            + session.getPlayerId()
+            + ",\"player\":"
+            + jsonString(session.getPlayerName())
+            + ",\"answer\":"
+            + answerIndex
+            + ",\"stage\":"
+            + jsonString(stage)
+            + ",\"offset_us\":"
+            + offsetUs(atNs)
+            + "}");
+  }
+
+  private void emitAnswerResult(
+      String result,
+      ClientSession session,
+      int answerIndex,
+      long receivedNs,
+      long enterNs,
+      long casAttemptNs,
+      long deltaUs) {
+    EventBus.emit(
+        "answer_result",
+        "{"
+            + "\"round\":"
+            + currentRound
+            + ",\"player_id\":"
+            + session.getPlayerId()
+            + ",\"player\":"
+            + jsonString(session.getPlayerName())
+            + ",\"answer\":"
+            + answerIndex
+            + ",\"recv_us\":"
+            + offsetUs(receivedNs)
+            + ",\"enter_us\":"
+            + offsetUs(enterNs)
+            + ",\"cas_us\":"
+            + (casAttemptNs > 0 ? offsetUs(casAttemptNs) : "null")
+            + ",\"result\":"
+            + jsonString(result)
+            + ",\"delta_us\":"
+            + deltaUs
+            + "}");
+  }
+
+  private long offsetUs(long atNs) {
+    return (atNs - roundStartNs.get()) / 1_000;
+  }
+
+  private static String jsonString(String s) {
+    return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
 }

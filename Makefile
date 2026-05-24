@@ -21,3 +21,8 @@ fmt:
 
 lint:
 	mvn spotless:check
+
+observe:
+	test -d .venv || python3 -m venv .venv
+	.venv/bin/pip install -q -r requirements.txt
+	.venv/bin/python3 cli/observe.py
