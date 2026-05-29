@@ -6,6 +6,7 @@ public class MessageType {
   public static final int ANSWER = 0x02;
   public static final int DISCONNECT = 0x03;
   public static final int START = 0x04;
+  public static final int READY = 0x05;
 
   // S → C
   public static final int CONNECT_ACK = 0x11;
@@ -17,4 +18,5 @@ public class MessageType {
   public static final int QUESTION_CHUNK = 0x17;
   public static final int CONNECT_NG = 0x18;
   public static final int GAME_END = 0x19; // ゲーム終了時
+  public static final int LOBBY_STATUS = 0x1A; // ロビーのReady状態
 }

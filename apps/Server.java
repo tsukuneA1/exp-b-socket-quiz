@@ -1,5 +1,9 @@
 package apps;
 
+import java.io.*;
+import java.net.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import apps.game.GameEvent;
 import apps.game.GameManager;
 import apps.game.LobbyManager;
@@ -7,65 +11,46 @@ import apps.server.ClientSession;
 import apps.shared.codec.FrameEncoder;
 import apps.shared.codec.MessageType;
 import apps.shared.s2c.ConnectNgMessage;
-import java.io.*;
-import java.net.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import metrics.EventBus;
 
 public class Server {
-  public static final int DEFAULT_PORT = 8080;
+    public static final int DEFAULT_PORT = 8080;
 
-  public static void main(String[] args) throws IOException {
-    int port = (args.length > 0) ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-    EventBus.start(9090);
-    LobbyManager lobby = new LobbyManager();
-    BlockingQueue<GameEvent> gameEvents = new LinkedBlockingQueue<>();
-    GameManager gameManager = new GameManager(lobby, gameEvents);
-    lobby.setGameManager(gameManager);
-    AtomicBoolean gameStarted = new AtomicBoolean(false);
+    public static void main(String[] args) throws IOException {
+        int port = (args.length > 0) ? Integer.parseInt(args[0]) : DEFAULT_PORT;
 
-    try (ServerSocket ss = new ServerSocket(port)) {
-      System.out.println("Server started: " + ss);
+        BlockingQueue<GameEvent> gameEvents = new LinkedBlockingQueue<>();
+        LobbyManager lobby = new LobbyManager();
+        GameManager gameManager = new GameManager(lobby, gameEvents);
+        lobby.setGameManager(gameManager);
 
-      while (true) {
-        Socket socket = ss.accept();
+        // ゲーム進行スレッドを起動（全員READYになるまでブロック）
+        new Thread(gameManager::start, "game-thread").start();
 
-        if (lobby.isFull()) {
-          try {
-            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-            FrameEncoder.writeFrame(
-                out, MessageType.CONNECT_NG, new ConnectNgMessage("FULL").toBytes());
-          } catch (IOException ignored) {
-          } finally {
-            socket.close();
-          }
-          System.out.println("Rejected: server full");
-          continue;
-        }
+        try (ServerSocket ss = new ServerSocket(port)) {
+            System.out.println("Server started: " + ss);
+            System.out.println("Waiting for players... (type 'ready' to start)");
 
-        ClientSession session = new ClientSession(socket, lobby, gameEvents);
-        lobby.add(session);
-        new Thread(session).start();
-        System.out.println("Session started, clients=" + lobby.size());
+            while (true) {
+                Socket socket = ss.accept();
 
-        if (lobby.isReady() && gameStarted.compareAndSet(false, true)) {
-          new Thread(
-                  () -> {
+                if (lobby.isFull()) {
                     try {
-                      Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                      Thread.currentThread().interrupt();
-                      return;
+                        DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+                        FrameEncoder.writeFrame(out, MessageType.CONNECT_NG,
+                                new ConnectNgMessage("FULL").toBytes());
+                    } catch (IOException ignored) {
+                    } finally {
+                        socket.close();
                     }
-                    System.out.println("[Server] Starting game with " + lobby.size() + " players.");
-                    gameManager.start();
-                  },
-                  "game-thread")
-              .start();
+                    System.out.println("Rejected: server full");
+                    continue;
+                }
+
+                ClientSession session = new ClientSession(socket, lobby, gameEvents);
+                lobby.add(session);
+                new Thread(session).start();
+                System.out.println("Session started, clients=" + lobby.size());
+            }
         }
-      }
     }
-  }
 }

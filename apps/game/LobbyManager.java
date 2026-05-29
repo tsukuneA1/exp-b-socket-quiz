@@ -4,7 +4,10 @@ import apps.server.ClientSession;
 import apps.shared.codec.FrameEncoder;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LobbyManager {
@@ -13,6 +16,8 @@ public class LobbyManager {
   private GameManager gameManager;
 
   private final AtomicInteger hostPlayerId = new AtomicInteger(-1);
+  private final Set<Integer> readyPlayers = ConcurrentHashMap.newKeySet();
+  private final AtomicBoolean gameTriggered = new AtomicBoolean(false);
 
   public boolean isFull() {
     return sessions.size() >= GameConfig.MAX_PLAYERS;
@@ -41,6 +46,24 @@ public class LobbyManager {
   public void remove(ClientSession session) {
     sessions.remove(session);
     System.out.println("Session removed, remaining=" + sessions.size());
+  }
+
+  /**
+   * プレイヤーをReady状態にする。
+   * 全員がReadyかつMIN_PLAYERSを満たした場合、初回のみtrueを返す（ゲームスタートのシグナル）。
+   */
+  public boolean markReady(int playerId) {
+    readyPlayers.add(playerId);
+    if (sessions.size() < GameConfig.MIN_PLAYERS) {
+      return false;
+    }
+    boolean allReady =
+        sessions.stream().map(ClientSession::getPlayerId).allMatch(readyPlayers::contains);
+    return allReady && gameTriggered.compareAndSet(false, true);
+  }
+
+  public int readyCount() {
+    return readyPlayers.size();
   }
 
   public int size() {

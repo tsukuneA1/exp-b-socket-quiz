@@ -1,6 +1,7 @@
 package apps;
 
 import apps.shared.c2s.ConnectMessage;
+import apps.shared.s2c.LobbyStatusMessage;
 import apps.shared.codec.FrameDecoder;
 import apps.shared.codec.FrameEncoder;
 import apps.shared.codec.MessageType;
@@ -50,9 +51,6 @@ public class Client {
 
       if (firstMessage instanceof ConnectAckMessage ack) {
         System.out.println("Connected. Your playerId = " + ack.playerId());
-        if (ack.playerId() == 1) {
-          System.out.println("You are the [HOST]. The game can be started by only [HOST]");
-        }
       } else if (firstMessage instanceof ConnectNgMessage ng) {
         System.out.println("Connection failed. reason=" + ng.reason());
         return;
@@ -111,9 +109,9 @@ public class Client {
         String[] parts = line.split("\\s+");
         String command = parts[0].toLowerCase();
         switch (command) {
-          case "s" -> {
-            FrameEncoder.writeFrame(out, MessageType.START, new byte[0]);
-            System.out.println("Sent START");
+          case "ready" -> {
+            FrameEncoder.writeFrame(out, MessageType.READY, new byte[0]);
+            System.out.println("Sent READY");
           }
           case "d" -> {
             FrameEncoder.writeFrame(out, MessageType.DISCONNECT, new byte[0]);
@@ -178,6 +176,13 @@ public class Client {
           score
               .scores()
               .forEach(e -> System.out.println("  " + e.playerName() + ": " + e.score() + "点"));
+        } else if (message instanceof LobbyStatusMessage status) {
+          System.out.println();
+          System.out.println(
+              "Ready: " + status.readyCount() + "/" + status.totalCount() + " players");
+          if (status.readyCount() < status.totalCount()) {
+            System.out.println("Waiting for other players to type 'ready'...");
+          }
         } else if (message instanceof GameEndMessage end) {
           System.out.println();
           System.out.println("=== ゲーム終了 ===");
@@ -217,10 +222,9 @@ public class Client {
   private static void printHelp() {
     System.out.println();
     System.out.println("Commands:");
-    System.out.println("  s         : start the game (host only)");
+    System.out.println("  ready     : signal that you are ready to start");
     System.out.println("  <number>  : send answer index to server");
     System.out.println("  d         : disconnect from server");
-    // System.out.println("  quit / exit      : same as disconnect");
     System.out.println("  h         : show this help");
     System.out.println();
   }

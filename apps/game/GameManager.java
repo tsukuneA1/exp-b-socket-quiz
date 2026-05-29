@@ -39,7 +39,7 @@ public class GameManager {
   }
 
   public void start() {
-    System.out.println("[GameManager] Waiting for host to send START...");
+    System.out.println("[GameManager] Waiting for all players to be ready...");
     if (!waitForStart()) {
       return;
     }
@@ -100,8 +100,8 @@ public class GameManager {
     while (true) {
       try {
         GameEvent event = takeEvent();
-        if (event instanceof GameEvent.Start start && lobby.isHost(start.session().getPlayerId())) {
-          System.out.println("[GameManager] START received from host.");
+        if (event instanceof GameEvent.Start) {
+          System.out.println("[GameManager] All players ready. Starting game.");
           return true;
         }
       } catch (InterruptedException e) {

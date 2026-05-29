@@ -4,12 +4,14 @@ import apps.game.GameEvent;
 import apps.game.LobbyManager;
 import apps.shared.c2s.*;
 import apps.shared.codec.*;
-import apps.shared.s2c.*;
+import apps.shared.s2c.DisconnectAckMessage;
+import apps.shared.s2c.LobbyStatusMessage;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import metrics.EventBus;
+import apps.shared.s2c.ConnectAckMessage;
 
 public class ClientSession implements Runnable {
   private static final AtomicLong EVENT_SEQUENCE = new AtomicLong(1);
@@ -84,15 +86,15 @@ public class ClientSession implements Runnable {
                     EVENT_SEQUENCE.getAndIncrement());
             enqueueGameEvent(event);
           }
-          case StartMessage ignored -> {
-            // ホストだけSTARTを受け付ける
-            if (lobby.isHost(playerId)) {
-              System.out.println("START: playerId=" + playerId + " [HOST]");
+          case ReadyMessage ignored -> {
+            System.out.println("READY: playerId=" + playerId);
+            boolean shouldStart = lobby.markReady(playerId);
+            broadcastLobbyStatus();
+            if (shouldStart) {
+              System.out.println("[ClientSession] All players ready. Triggering game start.");
               GameEvent event =
                   new GameEvent.Start(this, System.nanoTime(), EVENT_SEQUENCE.getAndIncrement());
               enqueueGameEvent(event);
-            } else {
-              System.out.println("START rejected: playerId=" + playerId + " is not host");
             }
           }
           default -> System.out.println("Unknown message: " + msg);
@@ -109,6 +111,11 @@ public class ClientSession implements Runnable {
       }
       System.out.println("Session closed: playerId=" + playerId);
     }
+  }
+
+  private void broadcastLobbyStatus() {
+    LobbyStatusMessage msg = new LobbyStatusMessage(lobby.readyCount(), lobby.size());
+    lobby.broadcast(MessageType.LOBBY_STATUS, msg.toBytes());
   }
 
   private void enqueueGameEvent(GameEvent event) {
