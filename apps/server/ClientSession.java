@@ -57,12 +57,7 @@ public class ClientSession implements Runnable {
       this.playerName = connect.playerName();
       FrameEncoder.writeFrame(
           out, MessageType.CONNECT_ACK, new ConnectAckMessage(playerId).toBytes());
-      System.out.println(
-          "CONNECT_ACK: playerId="
-              + playerId
-              + " name="
-              + playerName
-              + (lobby.isHost(playerId) ? " [HOST]" : ""));
+      System.out.println("CONNECT_ACK: playerId=" + playerId + " name=" + playerName);
 
       while (true) {
         FrameDecoder.Frame f = FrameDecoder.readFrame(in);

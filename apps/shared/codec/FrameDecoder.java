@@ -5,7 +5,6 @@ import apps.shared.c2s.ClientMessage;
 import apps.shared.c2s.ConnectMessage;
 import apps.shared.c2s.DisconnectMessage;
 import apps.shared.c2s.ReadyMessage;
-import apps.shared.c2s.StartMessage;
 import apps.shared.s2c.ConnectAckMessage;
 import apps.shared.s2c.ConnectNgMessage;
 import apps.shared.s2c.DisconnectAckMessage;
@@ -37,7 +36,6 @@ public class FrameDecoder {
       case MessageType.CONNECT -> ConnectMessage.parse(frame.body());
       case MessageType.ANSWER -> AnswerMessage.parse(frame.body());
       case MessageType.DISCONNECT -> DisconnectMessage.parse(frame.body());
-      case MessageType.START -> StartMessage.parse(frame.body());
       case MessageType.READY -> ReadyMessage.parse(frame.body());
       default ->
           throw new InvalidMessageException(

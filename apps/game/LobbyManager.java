@@ -15,7 +15,6 @@ public class LobbyManager {
   private final AtomicInteger nextPlayerId = new AtomicInteger(1);
   private GameManager gameManager;
 
-  private final AtomicInteger hostPlayerId = new AtomicInteger(-1);
   private final Set<Integer> readyPlayers = ConcurrentHashMap.newKeySet();
   private final AtomicBoolean gameTriggered = new AtomicBoolean(false);
 
@@ -28,15 +27,7 @@ public class LobbyManager {
   }
 
   public int assignId() {
-    int id = nextPlayerId.getAndIncrement();
-    if (hostPlayerId.compareAndSet(-1, id)) {
-      System.out.println("[LobbyManager] Host assigned: playerId=" + id);
-    }
-    return id;
-  }
-
-  public boolean isHost(int playerId) {
-    return playerId == hostPlayerId.get();
+    return nextPlayerId.getAndIncrement();
   }
 
   public void add(ClientSession session) {
