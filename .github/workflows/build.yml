@@ -14,5 +14,6 @@ jobs:
           java-version: "21"
           distribution: temurin
           cache: maven
-      - run: mvn compile
-      - run: mvn test
+      - run: make lint
+      - run: make build
+      - run: make test
