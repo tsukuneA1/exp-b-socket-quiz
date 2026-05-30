@@ -5,6 +5,7 @@ import java.io.*;
 import java.net.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import metrics.EventBus;
 import server.ClientSession;
 import shared.codec.FrameEncoder;
 import shared.codec.MessageType;
@@ -12,9 +13,11 @@ import shared.s2c.ConnectNgMessage;
 
 public class Server {
   public static final int DEFAULT_PORT = 8080;
+  public static final int EVENT_BUS_PORT = 9090;
 
   public static void main(String[] args) throws IOException {
     int port = (args.length > 0) ? Integer.parseInt(args[0]) : DEFAULT_PORT;
+    EventBus.start(EVENT_BUS_PORT);
 
     BlockingQueue<GameEvent> gameEvents = new LinkedBlockingQueue<>();
     LobbyManager lobby = new LobbyManager();

@@ -2,16 +2,16 @@ build:
 	mvn compile -q
 
 server:
-	mvn exec:java -Dexec.mainClass=apps.Server
+	mvn exec:java -Dexec.mainClass=Server
 
 server-port:
-	mvn exec:java -Dexec.mainClass=apps.Server -Dexec.args=$(port)
+	mvn exec:java -Dexec.mainClass=Server -Dexec.args=$(port)
 
 client:
-	mvn exec:java -Dexec.mainClass=apps.Client -Dexec.args="$(name)"
+	mvn exec:java -Dexec.mainClass=Client -Dexec.args="$(name)"
 
 client-port:
-	mvn exec:java -Dexec.mainClass=apps.Client -Dexec.args="$(name) $(port)"
+	mvn exec:java -Dexec.mainClass=Client -Dexec.args="$(name) $(port)"
 
 test:
 	mvn test
