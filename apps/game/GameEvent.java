@@ -1,6 +1,6 @@
-package apps.game;
+package game;
 
-import apps.server.ClientSession;
+import server.ClientSession;
 
 public sealed interface GameEvent permits GameEvent.Start, GameEvent.Answer {
   ClientSession session();

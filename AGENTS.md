@@ -11,12 +11,12 @@ Mavenを使う。`pom.xml` はプロジェクトルートにある。Java 21 必
 mvn compile
 
 # サーバー起動（ポート省略時は 8080）
-mvn exec:java -Dexec.mainClass=apps.Server
-mvn exec:java -Dexec.mainClass=apps.Server -Dexec.args=9090
+mvn exec:java -Dexec.mainClass=Server
+mvn exec:java -Dexec.mainClass=Server -Dexec.args=9090
 
 # クライアント起動（別ターミナルで、引数: playerName [port]）
-mvn exec:java -Dexec.mainClass=apps.Client -Dexec.args="Alice"
-mvn exec:java -Dexec.mainClass=apps.Client -Dexec.args="Alice 9090"
+mvn exec:java -Dexec.mainClass=Client -Dexec.args="Alice"
+mvn exec:java -Dexec.mainClass=Client -Dexec.args="Alice 9090"
 
 # テスト実行
 mvn test

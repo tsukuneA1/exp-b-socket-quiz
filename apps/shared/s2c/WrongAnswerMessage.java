@@ -1,6 +1,6 @@
-package apps.shared.s2c;
+package shared.s2c;
 
-import apps.shared.codec.InvalidMessageException;
+import shared.codec.InvalidMessageException;
 
 public record WrongAnswerMessage() implements ServerMessage {
   public static WrongAnswerMessage parse(byte[] body) {

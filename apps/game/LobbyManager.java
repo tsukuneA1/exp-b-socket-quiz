@@ -1,7 +1,5 @@
-package apps.game;
+package game;
 
-import apps.server.ClientSession;
-import apps.shared.codec.FrameEncoder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
@@ -9,6 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import server.ClientSession;
+import shared.codec.FrameEncoder;
 
 public class LobbyManager {
   private final List<ClientSession> sessions = new CopyOnWriteArrayList<>();

@@ -1,4 +1,4 @@
-package apps.game;
+package game;
 
 public class GameConfig {
   public static final int MIN_PLAYERS = 2;

@@ -1,4 +1,4 @@
-package apps.shared.codec;
+package shared.codec;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
