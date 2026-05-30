@@ -37,7 +37,7 @@ def get_row(event: dict) -> dict:
             "answer": event.get("answer", ""),
             "recv_us": None,
             "enter_us": None,
-            "cas_us": None,
+            "accept_us": None,
             "result": "",
             "delta_us": 0,
         },
@@ -56,8 +56,8 @@ def fmt_result(row: dict) -> Text:
     delta = row.get("delta_us", 0)
     if result == "SUCCESS":
         return Text("SUCCESS", style="bold green")
-    if result == "CAS_FAIL":
-        return Text(f"CAS_FAIL +{delta}us", style="yellow")
+    if result == "ACCEPT_FAIL":
+        return Text(f"ACCEPT_FAIL +{delta}us", style="yellow")
     if result == "LATE":
         return Text(f"LATE +{delta}us", style="dim")
     if result == "WRONG":
@@ -70,7 +70,7 @@ def render_trace_table(reason: str = "") -> None:
         return
 
     table = Table(
-        title=f"Round {current_round} / CAS linearization trace{reason}",
+        title=f"Round {current_round} / answer linearization trace{reason}",
         box=box.SIMPLE_HEAVY,
         show_lines=False,
     )
@@ -78,7 +78,7 @@ def render_trace_table(reason: str = "") -> None:
     table.add_column("answer", justify="right")
     table.add_column("recv +us", justify="right")
     table.add_column("enter +us", justify="right")
-    table.add_column("cas +us", justify="right")
+    table.add_column("accept +us", justify="right")
     table.add_column("result")
 
     rows = sorted(
@@ -95,7 +95,7 @@ def render_trace_table(reason: str = "") -> None:
             str(row["answer"]),
             fmt_us(row["recv_us"]),
             fmt_us(row["enter_us"]),
-            fmt_us(row["cas_us"]),
+            fmt_us(row["accept_us"]),
             fmt_result(row),
         )
     console.print(table)
@@ -125,14 +125,14 @@ def handle(event: dict) -> None:
             row["recv_us"] = event["offset_us"]
         elif stage == "enter":
             row["enter_us"] = event["offset_us"]
-        elif stage == "cas_attempt":
-            row["cas_us"] = event["offset_us"]
+        elif stage == "accept_attempt":
+            row["accept_us"] = event["offset_us"]
 
     elif kind == "answer_result":
         row = get_row(event)
         row["recv_us"] = event.get("recv_us")
         row["enter_us"] = event.get("enter_us")
-        row["cas_us"] = event.get("cas_us")
+        row["accept_us"] = event.get("accept_us")
         row["result"] = event["result"]
         row["delta_us"] = event.get("delta_us", 0)
         render_trace_table()
@@ -159,9 +159,6 @@ def handle(event: dict) -> None:
         pass
 
     elif kind == "answer_late":
-        pass
-
-    elif kind == "answer_cas_rejected":
         pass
 
     elif kind == "round_all_wrong":
