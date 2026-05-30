@@ -6,7 +6,9 @@ import apps.shared.codec.MessageType;
 import apps.shared.s2c.*;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,6 +27,7 @@ public class GameManager {
 
   private final int[] scores = new int[GameConfig.MAX_PLAYERS + 1];
   private final AtomicInteger wrongCount = new AtomicInteger(0);
+  private final Set<Integer> wrongPlayers = new HashSet<>();
   private volatile int currentCorrectIndex = 0;
   private volatile int currentRound = 0;
 
@@ -53,6 +56,7 @@ public class GameManager {
 
       currentCorrectIndex = q.correctIndex();
       wrongCount.set(0);
+      wrongPlayers.clear();
       roundDone = false;
       winnerAnswerNs.set(0);
       roundStartNs.set(System.nanoTime());
@@ -247,6 +251,9 @@ public class GameManager {
           "{\"player\":" + jsonString(playerName) + ",\"round\":" + currentRound + "}");
       sendTo(session.getOut(), MessageType.WRONG_ANSWER, new WrongAnswerMessage().toBytes());
 
+      if (!wrongPlayers.add(playerId)) {
+        return;
+      }
       int wrong = wrongCount.incrementAndGet();
       if (wrong >= lobby.size()) {
         streaming.set(false);
