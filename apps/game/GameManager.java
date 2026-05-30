@@ -7,9 +7,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import metrics.EventBus;
 import server.ClientSession;
 import shared.codec.FrameEncoder;
@@ -22,19 +19,19 @@ public class GameManager {
   private final BlockingQueue<GameEvent> inbox;
   private final List<Question> questions = Question.ALL;
 
-  private final AtomicBoolean accepting = new AtomicBoolean(false);
-  private final AtomicBoolean streaming = new AtomicBoolean(false);
+  private boolean accepting = false;
+  private boolean streaming = false;
 
   private final int[] scores = new int[GameConfig.MAX_PLAYERS + 1];
-  private final AtomicInteger wrongCount = new AtomicInteger(0);
+  private int wrongCount = 0;
   private final Set<Integer> wrongPlayers = new HashSet<>();
-  private volatile int currentCorrectIndex = 0;
-  private volatile int currentRound = 0;
+  private int currentCorrectIndex = 0;
+  private int currentRound = 0;
 
-  private volatile boolean roundDone = false;
+  private boolean roundDone = false;
 
-  private final AtomicLong roundStartNs = new AtomicLong(0);
-  private final AtomicLong winnerAnswerNs = new AtomicLong(0);
+  private long roundStartNs = 0;
+  private long winnerAnswerNs = 0;
 
   public GameManager(LobbyManager lobby, BlockingQueue<GameEvent> inbox) {
     this.lobby = lobby;
@@ -55,11 +52,11 @@ public class GameManager {
       System.out.println("[GameManager] Round " + currentRound + ": " + q.text());
 
       currentCorrectIndex = q.correctIndex();
-      wrongCount.set(0);
+      wrongCount = 0;
       wrongPlayers.clear();
       roundDone = false;
-      winnerAnswerNs.set(0);
-      roundStartNs.set(System.nanoTime());
+      winnerAnswerNs = 0;
+      roundStartNs = System.nanoTime();
 
       EventBus.emit(
           "round_start",
@@ -116,13 +113,13 @@ public class GameManager {
   }
 
   private boolean streamQuestionText(String text) {
-    streaming.set(true);
-    accepting.set(true);
+    streaming = true;
+    accepting = true;
 
     int[] codePoints = text.codePoints().toArray();
 
     for (int cp : codePoints) {
-      if (!streaming.get()) {
+      if (!streaming) {
         System.out.println("[GameManager] Streaming stopped by answer.");
         break;
       }
@@ -189,10 +186,9 @@ public class GameManager {
     emitAnswerTrace("received", session, answerIndex, receivedNs);
     emitAnswerTrace("enter", session, answerIndex, enterNs);
 
-    if (!accepting.get()) {
-      long winNs = winnerAnswerNs.get();
-      if (winNs > 0) {
-        long deltaUs = (receivedNs - winNs) / 1_000;
+    if (!accepting) {
+      if (winnerAnswerNs > 0) {
+        long deltaUs = (receivedNs - winnerAnswerNs) / 1_000;
         emitAnswerResult("LATE", session, answerIndex, receivedNs, enterNs, 0, deltaUs);
         EventBus.emit(
             "answer_late",
@@ -204,23 +200,13 @@ public class GameManager {
     System.out.println("[GameManager] ANSWER: playerId=" + playerId + " index=" + answerIndex);
 
     if (answerIndex == currentCorrectIndex) {
-      long casAttemptNs = System.nanoTime();
-      emitAnswerTrace("cas_attempt", session, answerIndex, casAttemptNs);
+      long acceptAttemptNs = System.nanoTime();
+      emitAnswerTrace("accept_attempt", session, answerIndex, acceptAttemptNs);
 
-      if (!accepting.compareAndSet(true, false)) {
-        long winNs = winnerAnswerNs.get();
-        long deltaUs = winNs > 0 ? (receivedNs - winNs) / 1_000 : 0;
-        emitAnswerResult(
-            "CAS_FAIL", session, answerIndex, receivedNs, enterNs, casAttemptNs, deltaUs);
-        EventBus.emit(
-            "answer_cas_rejected",
-            "{\"player\":" + jsonString(playerName) + ",\"delta_us\":" + deltaUs + "}");
-        return;
-      }
-
-      winnerAnswerNs.set(casAttemptNs);
-      long roundMs = (receivedNs - roundStartNs.get()) / 1_000_000;
-      emitAnswerResult("SUCCESS", session, answerIndex, receivedNs, enterNs, casAttemptNs, 0);
+      accepting = false;
+      winnerAnswerNs = acceptAttemptNs;
+      long roundMs = (receivedNs - roundStartNs) / 1_000_000;
+      emitAnswerResult("SUCCESS", session, answerIndex, receivedNs, enterNs, acceptAttemptNs, 0);
 
       EventBus.emit(
           "answer_correct",
@@ -233,7 +219,7 @@ public class GameManager {
               + roundMs
               + "}");
 
-      streaming.set(false);
+      streaming = false;
       scores[playerId]++;
 
       System.out.println("[GameManager] Correct! playerId=" + playerId);
@@ -254,11 +240,11 @@ public class GameManager {
       if (!wrongPlayers.add(playerId)) {
         return;
       }
-      int wrong = wrongCount.incrementAndGet();
+      int wrong = ++wrongCount;
       if (wrong >= lobby.size()) {
-        streaming.set(false);
-        accepting.set(false);
-        long roundMs = (receivedNs - roundStartNs.get()) / 1_000_000;
+        streaming = false;
+        accepting = false;
+        long roundMs = (receivedNs - roundStartNs) / 1_000_000;
         EventBus.emit(
             "round_all_wrong", "{\"round\":" + currentRound + ",\"round_ms\":" + roundMs + "}");
         System.out.println("[GameManager] All players answered wrong. Moving to next round.");
@@ -347,7 +333,7 @@ public class GameManager {
       int answerIndex,
       long receivedNs,
       long enterNs,
-      long casAttemptNs,
+      long acceptAttemptNs,
       long deltaUs) {
     EventBus.emit(
         "answer_result",
@@ -364,8 +350,8 @@ public class GameManager {
             + offsetUs(receivedNs)
             + ",\"enter_us\":"
             + offsetUs(enterNs)
-            + ",\"cas_us\":"
-            + (casAttemptNs > 0 ? offsetUs(casAttemptNs) : "null")
+            + ",\"accept_us\":"
+            + (acceptAttemptNs > 0 ? offsetUs(acceptAttemptNs) : "null")
             + ",\"result\":"
             + jsonString(result)
             + ",\"delta_us\":"
@@ -397,7 +383,7 @@ public class GameManager {
   }
 
   private long offsetUs(long atNs) {
-    return (atNs - roundStartNs.get()) / 1_000;
+    return (atNs - roundStartNs) / 1_000;
   }
 
   private static String jsonString(String s) {
