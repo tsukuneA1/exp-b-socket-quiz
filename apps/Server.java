@@ -1,16 +1,14 @@
-package apps;
-
-import apps.game.GameEvent;
-import apps.game.GameManager;
-import apps.game.LobbyManager;
-import apps.server.ClientSession;
-import apps.shared.codec.FrameEncoder;
-import apps.shared.codec.MessageType;
-import apps.shared.s2c.ConnectNgMessage;
+import game.GameEvent;
+import game.GameManager;
+import game.LobbyManager;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import server.ClientSession;
+import shared.codec.FrameEncoder;
+import shared.codec.MessageType;
+import shared.s2c.ConnectNgMessage;
 
 public class Server {
   public static final int DEFAULT_PORT = 8080;
