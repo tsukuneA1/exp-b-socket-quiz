@@ -1,7 +1,7 @@
-package apps.game;
+package game;
 
-import apps.server.ClientSession;
-import apps.shared.codec.FrameEncoder;
+import server.ClientSession;
+import shared.codec.FrameEncoder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;

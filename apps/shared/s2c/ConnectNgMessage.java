@@ -1,6 +1,6 @@
-package apps.shared.s2c;
+package shared.s2c;
 
-import apps.shared.codec.InvalidMessageException;
+import shared.codec.InvalidMessageException;
 import java.nio.charset.StandardCharsets;
 
 public record ConnectNgMessage(String reason) implements ServerMessage {

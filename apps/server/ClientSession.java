@@ -1,12 +1,12 @@
-package apps.server;
+package server;
 
-import apps.game.GameEvent;
-import apps.game.LobbyManager;
-import apps.shared.c2s.*;
-import apps.shared.codec.*;
-import apps.shared.s2c.ConnectAckMessage;
-import apps.shared.s2c.DisconnectAckMessage;
-import apps.shared.s2c.LobbyStatusMessage;
+import game.GameEvent;
+import game.LobbyManager;
+import shared.c2s.*;
+import shared.codec.*;
+import shared.s2c.ConnectAckMessage;
+import shared.s2c.DisconnectAckMessage;
+import shared.s2c.LobbyStatusMessage;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.BlockingQueue;

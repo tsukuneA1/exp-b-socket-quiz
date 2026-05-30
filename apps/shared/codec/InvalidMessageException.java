@@ -1,4 +1,4 @@
-package apps.shared.codec;
+package shared.codec;
 
 public class InvalidMessageException extends RuntimeException {
   public InvalidMessageException(String message) {
