@@ -1,7 +1,7 @@
 package shared.c2s;
 
-import shared.codec.InvalidMessageException;
 import java.nio.charset.StandardCharsets;
+import shared.codec.InvalidMessageException;
 
 public record ConnectMessage(String playerName) implements ClientMessage {
   public static final int MAX_NAME_BYTES = 16;

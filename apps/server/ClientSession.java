@@ -2,16 +2,16 @@ package server;
 
 import game.GameEvent;
 import game.LobbyManager;
-import shared.c2s.*;
-import shared.codec.*;
-import shared.s2c.ConnectAckMessage;
-import shared.s2c.DisconnectAckMessage;
-import shared.s2c.LobbyStatusMessage;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import metrics.EventBus;
+import shared.c2s.*;
+import shared.codec.*;
+import shared.s2c.ConnectAckMessage;
+import shared.s2c.DisconnectAckMessage;
+import shared.s2c.LobbyStatusMessage;
 
 public class ClientSession implements Runnable {
   private static final AtomicLong EVENT_SEQUENCE = new AtomicLong(1);

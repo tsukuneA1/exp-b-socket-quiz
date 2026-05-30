@@ -1,9 +1,5 @@
 package game;
 
-import server.ClientSession;
-import shared.codec.FrameEncoder;
-import shared.codec.MessageType;
-import shared.s2c.*;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
@@ -13,6 +9,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import metrics.EventBus;
+import server.ClientSession;
+import shared.codec.FrameEncoder;
+import shared.codec.MessageType;
+import shared.s2c.*;
 
 public class GameManager {
 

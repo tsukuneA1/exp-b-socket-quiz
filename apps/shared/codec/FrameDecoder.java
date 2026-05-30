@@ -1,5 +1,7 @@
 package shared.codec;
 
+import java.io.DataInputStream;
+import java.io.IOException;
 import shared.c2s.AnswerMessage;
 import shared.c2s.ClientMessage;
 import shared.c2s.ConnectMessage;
@@ -16,8 +18,6 @@ import shared.s2c.RoundEndMessage;
 import shared.s2c.ScoreMessage;
 import shared.s2c.ServerMessage;
 import shared.s2c.WrongAnswerMessage;
-import java.io.DataInputStream;
-import java.io.IOException;
 
 public class FrameDecoder {
 

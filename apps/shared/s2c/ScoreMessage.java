@@ -1,9 +1,9 @@
 package shared.s2c;
 
-import shared.codec.InvalidMessageException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import shared.codec.InvalidMessageException;
 
 public record ScoreMessage(List<ScoreEntry> scores) implements ServerMessage {
   public ScoreMessage {

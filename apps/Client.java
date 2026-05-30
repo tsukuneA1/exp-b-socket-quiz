@@ -1,4 +1,10 @@
-
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.util.Scanner;
 import shared.c2s.ConnectMessage;
 import shared.codec.FrameDecoder;
 import shared.codec.FrameEncoder;
@@ -14,13 +20,6 @@ import shared.s2c.RoundEndMessage;
 import shared.s2c.ScoreMessage;
 import shared.s2c.ServerMessage;
 import shared.s2c.WrongAnswerMessage;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.util.Scanner;
 
 public class Client {
 

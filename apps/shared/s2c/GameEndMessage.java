@@ -1,7 +1,7 @@
 package shared.s2c;
 
-import shared.codec.InvalidMessageException;
 import java.nio.charset.StandardCharsets;
+import shared.codec.InvalidMessageException;
 
 public record GameEndMessage(int winnerId, String winnerName) implements ServerMessage {
   public GameEndMessage {

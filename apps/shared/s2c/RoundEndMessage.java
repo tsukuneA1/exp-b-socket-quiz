@@ -1,7 +1,7 @@
 package shared.s2c;
 
-import shared.codec.InvalidMessageException;
 import java.nio.charset.StandardCharsets;
+import shared.codec.InvalidMessageException;
 
 public record RoundEndMessage(int winnerId, int correctIndex, String winnerName)
     implements ServerMessage {
