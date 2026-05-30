@@ -48,10 +48,7 @@ public class LobbyManager {
     System.out.println("Session removed, remaining=" + sessions.size());
   }
 
-  /**
-   * プレイヤーをReady状態にする。
-   * 全員がReadyかつMIN_PLAYERSを満たした場合、初回のみtrueを返す（ゲームスタートのシグナル）。
-   */
+  /** プレイヤーをReady状態にする。 全員がReadyかつMIN_PLAYERSを満たした場合、初回のみtrueを返す（ゲームスタートのシグナル）。 */
   public boolean markReady(int playerId) {
     readyPlayers.add(playerId);
     if (sessions.size() < GameConfig.MIN_PLAYERS) {

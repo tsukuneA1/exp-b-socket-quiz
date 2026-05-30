@@ -4,6 +4,7 @@ import apps.game.GameEvent;
 import apps.game.LobbyManager;
 import apps.shared.c2s.*;
 import apps.shared.codec.*;
+import apps.shared.s2c.ConnectAckMessage;
 import apps.shared.s2c.DisconnectAckMessage;
 import apps.shared.s2c.LobbyStatusMessage;
 import java.io.*;
@@ -11,7 +12,6 @@ import java.net.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import metrics.EventBus;
-import apps.shared.s2c.ConnectAckMessage;
 
 public class ClientSession implements Runnable {
   private static final AtomicLong EVENT_SEQUENCE = new AtomicLong(1);

@@ -1,7 +1,6 @@
 package apps;
 
 import apps.shared.c2s.ConnectMessage;
-import apps.shared.s2c.LobbyStatusMessage;
 import apps.shared.codec.FrameDecoder;
 import apps.shared.codec.FrameEncoder;
 import apps.shared.codec.MessageType;
@@ -9,6 +8,7 @@ import apps.shared.s2c.ConnectAckMessage;
 import apps.shared.s2c.ConnectNgMessage;
 import apps.shared.s2c.DisconnectAckMessage;
 import apps.shared.s2c.GameEndMessage;
+import apps.shared.s2c.LobbyStatusMessage;
 import apps.shared.s2c.QuestionChunkMessage;
 import apps.shared.s2c.QuestionOptionsMessage;
 import apps.shared.s2c.RoundEndMessage;
