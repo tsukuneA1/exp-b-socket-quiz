@@ -51,10 +51,8 @@ public class LobbyManager {
   }
 
   public int readyCount() {
-    return (int) sessions.stream()
-        .map(ClientSession::getPlayerId)
-        .filter(readyPlayers::contains)
-        .count();
+    return (int)
+        sessions.stream().map(ClientSession::getPlayerId).filter(readyPlayers::contains).count();
   }
 
   public int size() {
