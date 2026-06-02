@@ -1,5 +1,12 @@
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GradientPaint;
 import java.awt.GridLayout;
+import java.awt.RenderingHints;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -32,6 +39,13 @@ import shared.s2c.ServerMessage;
 import shared.s2c.WrongAnswerMessage;
 
 public class GuiClient {
+    private static final Color[] ANSWER_COLORS = {
+            new Color(220, 64, 64),
+            new Color(64, 132, 220),
+            new Color(239, 178, 44),
+            new Color(58, 178, 103)
+    };
+
     private final JLabel statusLabel = new JLabel("Status: CONNECTING");
     private final JLabel playerLabel = new JLabel();
     private final JLabel readyLabel = new JLabel("Ready: -/-");
@@ -64,17 +78,28 @@ public class GuiClient {
         disconnectButton.setEnabled(false);
 
         questionArea.setEditable(false);
+        questionArea.setOpaque(false);
+        questionArea.setForeground(Color.WHITE);
+        questionArea.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
+        questionArea.setLineWrap(true);
+        questionArea.setWrapStyleWord(true);
         logArea.setEditable(false);
+        logArea.setBackground(new Color(18, 18, 18));
+        logArea.setForeground(new Color(99, 255, 126));
+        logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 14));
+        logArea.setRows(6);
 
-        JPanel topPanel = new JPanel(new GridLayout(3, 1));
+        JPanel topPanel = new JPanel(new GridLayout(4, 1));
         topPanel.add(playerLabel);
         topPanel.add(statusLabel);
         topPanel.add(readyLabel);
 
         JPanel answerPanel = new JPanel(new GridLayout(2, 2));
+        answerPanel.setOpaque(false);
         for (int i = 0; i < answerButtons.length; i++) {
             int answerIndex = i;
-            answerButtons[i] = new JButton("-");
+            answerButtons[i] = new AnswerButton("-");
+            answerButtons[i].setBackground(ANSWER_COLORS[i]);
             answerButtons[i].setEnabled(false);
             answerButtons[i].addActionListener(e -> sendAnswer(answerIndex));
             answerPanel.add(answerButtons[i]);
@@ -85,18 +110,31 @@ public class GuiClient {
         disconnectButton.addActionListener(e -> disconnect());
         controlPanel.add(readyButton);
         controlPanel.add(disconnectButton);
+        topPanel.add(controlPanel);
 
-        JPanel centerPanel = new JPanel(new BorderLayout());
-        centerPanel.add(new JScrollPane(questionArea), BorderLayout.CENTER);
-        centerPanel.add(answerPanel, BorderLayout.SOUTH);
+        JScrollPane questionScroll = new JScrollPane(questionArea);
+        questionScroll.setOpaque(false);
+        questionScroll.getViewport().setOpaque(false);
+        questionScroll.setBorder(null);
+
+        JPanel leftPanel = new QuizStagePanel();
+        leftPanel.setLayout(new BorderLayout(0, 12));
+        leftPanel.add(questionScroll, BorderLayout.CENTER);
+        leftPanel.add(answerPanel, BorderLayout.SOUTH);
+
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        rightPanel.add(new JLabel("Terminal Log"), BorderLayout.NORTH);
+        rightPanel.add(new JScrollPane(logArea), BorderLayout.CENTER);
+
+        JPanel mainPanel = new JPanel(new GridLayout(1, 2, 12, 0));
+        mainPanel.add(leftPanel);
+        mainPanel.add(rightPanel);
 
         frame.setLayout(new BorderLayout());
         frame.add(topPanel, BorderLayout.NORTH);
-        frame.add(centerPanel, BorderLayout.CENTER);
-        frame.add(new JScrollPane(logArea), BorderLayout.SOUTH);
-        frame.add(controlPanel, BorderLayout.EAST);
+        frame.add(mainPanel, BorderLayout.CENTER);
 
-        frame.setSize(700, 500);
+        frame.setSize(900, 560);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     }
 
@@ -145,7 +183,7 @@ public class GuiClient {
         } finally {
             running = false;
             closeSocket();
-            setStatusOnUi("DISCONNECTED");
+            markDisconnectedOnUi();
         }
     }
 
@@ -283,6 +321,16 @@ public class GuiClient {
         SwingUtilities.invokeLater(() -> statusLabel.setText("Status: " + status));
     }
 
+    private void markDisconnectedOnUi() {
+        SwingUtilities.invokeLater(
+                () -> {
+                    statusLabel.setText("Status: DISCONNECTED");
+                    readyButton.setEnabled(false);
+                    disconnectButton.setEnabled(false);
+                    disableAnswerButtons();
+                });
+    }
+
     private void showError(String message) {
         JOptionPane.showMessageDialog(frame, message, "Error", JOptionPane.ERROR_MESSAGE);
         log(message);
@@ -298,6 +346,53 @@ public class GuiClient {
                 socket.close();
             }
         } catch (IOException ignored) {
+        }
+    }
+
+    private static class QuizStagePanel extends JPanel {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int w = getWidth();
+            int h = getHeight();
+            g2.setPaint(new GradientPaint(0, 0, new Color(12, 23, 82), w, h, new Color(72, 15, 116)));
+            g2.fillRect(0, 0, w, h);
+            g2.setColor(new Color(255, 255, 255, 36));
+            g2.fillOval(-w / 4, -h / 5, w / 2, h / 2);
+            g2.fillOval(w * 2 / 3, h / 8, w / 2, h / 2);
+            g2.setColor(new Color(255, 224, 92, 70));
+            for (int x = 24; x < w; x += 56) {
+                g2.fillOval(x, 18, 18, 18);
+            }
+            g2.dispose();
+        }
+    }
+
+    private static class AnswerButton extends JButton {
+        AnswerButton(String text) {
+            super(text);
+            setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
+            setForeground(Color.WHITE);
+            setFocusPainted(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+            setOpaque(false);
+            setPreferredSize(new Dimension(150, 70));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Color base = isEnabled() ? getBackground() : new Color(110, 110, 110);
+            g2.setColor(base);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 48, 48);
+            g2.setColor(new Color(255, 255, 255, 90));
+            g2.drawRoundRect(2, 2, getWidth() - 5, getHeight() - 5, 44, 44);
+            g2.dispose();
+            super.paintComponent(g);
         }
     }
 }

@@ -36,6 +36,7 @@ public class LobbyManager {
 
   public void remove(ClientSession session) {
     sessions.remove(session);
+    readyPlayers.remove(session.getPlayerId());
     System.out.println("Session removed, remaining=" + sessions.size());
   }
 
@@ -73,6 +74,9 @@ public class LobbyManager {
 
   public void broadcast(int type, byte[] body) {
     for (ClientSession session : sessions) {
+      if (session.getOut() == null) {
+        continue;
+      }
       try {
         synchronized (session.getOut()) {
           FrameEncoder.writeFrame(session.getOut(), type, body);

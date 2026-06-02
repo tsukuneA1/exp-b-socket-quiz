@@ -170,8 +170,7 @@ public class Client {
           System.out.println();
           System.out.println("Received DISCONNECT_ACK");
           System.out.println("Disconnected from server.");
-          running = false;
-          break;
+          exitAfterServerDisconnect();
         } else if (message instanceof ConnectAckMessage ack) {
           playerId = ack.playerId();
           state = ClientState.WAITING;
@@ -181,8 +180,7 @@ public class Client {
         } else if (message instanceof ConnectNgMessage ng) {
           System.out.println();
           System.out.println("Received CONNECT_NG, reason=" + ng.reason());
-          running = false;
-          break;
+          exitAfterServerDisconnect();
         } else if (message instanceof QuestionChunkMessage chunk) {
           System.out.print(chunk.chunk());
         } else if (message instanceof QuestionOptionsMessage opts) {
@@ -250,8 +248,7 @@ public class Client {
             System.out.println("勝者: " + end.winnerName());
           }
           printStatus();
-          running = false;
-          break;
+          exitAfterServerDisconnect();
         } else {
           System.out.println();
           System.out.println("Received server message: " + message);
@@ -260,22 +257,25 @@ public class Client {
       } catch (EOFException e) {
         System.out.println();
         System.out.println("Server closed the connection.");
-        running = false;
-        break;
+        exitAfterServerDisconnect();
       } catch (IOException e) {
         if (running) {
           System.out.println();
           System.out.println("Connection error: " + e.getMessage());
         }
-        running = false;
-        break;
+        exitAfterServerDisconnect();
       } catch (RuntimeException e) {
         System.out.println();
         System.out.println("Failed to decode server message: " + e.getMessage());
-        running = false;
-        break;
+        exitAfterServerDisconnect();
       }
     }
+  }
+
+  private static void exitAfterServerDisconnect() {
+    running = false;
+    state = ClientState.DISCONNECTED;
+    System.exit(0);
   }
 
   private static void printStatus() {
