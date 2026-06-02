@@ -31,6 +31,81 @@
 | B | 通信・同期制御担当 | 複数人接続と早押し判定を安定させる |
 | C | クライアント・テスト・機能補助担当 | CUI操作、テスト、問題データ、デモ確認を担当する |
 
+## Build & Run
+
+### コンパイル
+
+CUI版とGUI版はどちらも同じコマンドでコンパイルする。
+
+```bash
+mvn compile
+```
+
+Makefileを使う場合:
+
+```bash
+make build
+```
+
+### サーバ起動
+
+```bash
+mvn exec:java -Dexec.mainClass=Server
+```
+
+ポート番号を指定する場合:
+
+```bash
+mvn exec:java -Dexec.mainClass=Server -Dexec.args=9090
+```
+
+Makefileを使う場合:
+
+```bash
+make server
+make server-port port=9090
+```
+
+### CUIクライアント起動
+
+```bash
+mvn exec:java -Dexec.mainClass=Client -Dexec.args="Alice"
+```
+
+ポート番号を指定する場合:
+
+```bash
+mvn exec:java -Dexec.mainClass=Client -Dexec.args="Alice 9090"
+```
+
+Makefileを使う場合:
+
+```bash
+make client name=Alice
+make client-port name=Alice port=9090
+```
+
+### GUIクライアント起動
+
+```bash
+mvn exec:java -Dexec.mainClass=GuiClient -Dexec.args="Alice"
+```
+
+ポート番号を指定する場合:
+
+```bash
+mvn exec:java -Dexec.mainClass=GuiClient -Dexec.args="Alice 9090"
+```
+
+Makefileを使う場合:
+
+```bash
+make gui-client name=Alice
+make gui-client-port name=Alice port=9090
+```
+
+GUI版の詳細は [docs/client-gui.md](docs/client-gui.md) を参照する。
+
 ## 現時点での開発予定
 
 | 時期 | 状態 |
