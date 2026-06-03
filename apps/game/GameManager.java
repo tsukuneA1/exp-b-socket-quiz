@@ -2,6 +2,7 @@ package game;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -39,11 +40,19 @@ public class GameManager {
   }
 
   public void start() {
-    System.out.println("[GameManager] Waiting for all players to be ready...");
-    if (!waitForStart()) {
-      return;
-    }
+    while (true) {
+      System.out.println("[GameManager] Waiting for all players to be ready...");
+      if (!waitForStart()) {
+        return;
+      }
 
+      resetGameState();
+      playGame();
+      lobby.resetReadyForNextGame();
+    }
+  }
+
+  private void playGame() {
     System.out.println("[GameManager] Game started. questions=" + questions.size());
 
     for (int i = 0; i < questions.size(); i++) {
@@ -95,6 +104,19 @@ public class GameManager {
 
     sendFinalScore();
     System.out.println("[GameManager] Game over.");
+  }
+
+  private void resetGameState() {
+    Arrays.fill(scores, 0);
+    accepting = false;
+    streaming = false;
+    wrongCount = 0;
+    wrongPlayers.clear();
+    currentCorrectIndex = 0;
+    currentRound = 0;
+    roundDone = false;
+    roundStartNs = 0;
+    winnerAnswerNs = 0;
   }
 
   private boolean waitForStart() {

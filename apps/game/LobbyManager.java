@@ -56,6 +56,11 @@ public class LobbyManager {
         sessions.stream().map(ClientSession::getPlayerId).filter(readyPlayers::contains).count();
   }
 
+  public void resetReadyForNextGame() {
+    readyPlayers.clear();
+    gameTriggered.set(false);
+  }
+
   public int size() {
     return sessions.size();
   }
