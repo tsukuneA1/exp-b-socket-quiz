@@ -62,6 +62,8 @@ def fmt_result(row: dict) -> Text:
         return Text(f"LATE +{delta}us", style="dim")
     if result == "WRONG":
         return Text("WRONG", style="red")
+    if result == "DISCARD":
+        return Text("DISCARD", style="dim yellow")
     return Text("")
 
 

@@ -67,6 +67,7 @@ public class GameManager {
       wrongPlayers.clear();
       roundDone = false;
       winnerAnswerNs = 0;
+      drainStaleAnswers();
       roundStartNs = System.nanoTime();
 
       EventBus.emit(
@@ -168,6 +169,33 @@ public class GameManager {
     GameEvent event;
     while (!roundDone && (event = pollEvent()) != null) {
       handleEvent(event);
+    }
+  }
+
+  private void drainStaleAnswers() {
+    GameEvent event;
+    while ((event = inbox.poll()) != null) {
+      if (!(event instanceof GameEvent.Answer answer)) continue;
+      System.out.println(
+          "[GameManager] Discarded stale ANSWER: player=" + answer.session().getPlayerName());
+      EventBus.emit(
+          "answer_result",
+          "{"
+              + "\"round\":"
+              + currentRound
+              + ",\"player_id\":"
+              + answer.session().getPlayerId()
+              + ",\"player\":"
+              + jsonString(answer.session().getPlayerName())
+              + ",\"answer\":"
+              + answer.answerIndex()
+              + ",\"recv_us\":"
+              + offsetUs(answer.receivedNs())
+              + ",\"enter_us\":null"
+              + ",\"accept_us\":null"
+              + ",\"result\":\"DISCARD\""
+              + ",\"delta_us\":0"
+              + "}");
     }
   }
 

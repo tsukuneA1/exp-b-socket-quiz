@@ -2,12 +2,18 @@
 """Race simulator — connects N bots and fires ANSWER simultaneously.
 
 Usage:
-  python cli/race.py [--host HOST] [--port PORT] [--bots N] [--answer INDEX]
+  python cli/race.py [--host HOST] [--port PORT] [--bots N] [--answer INDEX] [--stagger-ms MS]
 
-Example:
-  python cli/race.py --bots 2 --answer 0
+Examples:
+  python cli/race.py --bots 2 --answer 2
+  python cli/race.py --bots 3 --answer 2 --stagger-ms 50
+
+  --stagger-ms: bot(i) waits i * MS before sending ANSWER after the barrier.
+                Use this to control queue ordering intentionally.
 
 Run observe.py in a separate terminal to watch the linearization trace.
+
+Question 1 correct answer: index 2 (大阪)
 """
 
 import argparse
@@ -17,21 +23,22 @@ import threading
 import time
 
 # C → S
-CONNECT = 0x01
-ANSWER = 0x02
-READY = 0x05
+CONNECT    = 0x01
+ANSWER     = 0x02
+DISCONNECT = 0x03
+READY      = 0x05
 
 # S → C
-CONNECT_ACK = 0x11
-CONNECT_NG = 0x18
+CONNECT_ACK      = 0x11
 QUESTION_OPTIONS = 0x12
-QUESTION_CHUNK = 0x17
-WRONG_ANSWER = 0x13
-ROUND_END = 0x14
-SCORE = 0x15
-GAME_END = 0x19
-LOBBY_STATUS = 0x1A
-DISCONNECT_ACK = 0x16
+WRONG_ANSWER     = 0x13
+ROUND_END        = 0x14
+SCORE            = 0x15
+DISCONNECT_ACK   = 0x16
+QUESTION_CHUNK   = 0x17
+CONNECT_NG       = 0x18
+GAME_END         = 0x19
+LOBBY_STATUS     = 0x1A
 
 
 def send_frame(sock: socket.socket, msg_type: int, body: bytes = b"") -> None:
@@ -65,9 +72,11 @@ class BotResult:
 
 def bot_thread(
     name: str,
+    bot_index: int,
     host: str,
     port: int,
     answer_index: int,
+    stagger_ms: int,
     barrier: threading.Barrier,
     result: BotResult,
 ) -> None:
@@ -102,15 +111,19 @@ def bot_thread(
                 if t == QUESTION_OPTIONS:
                     print(f"[{name}] QUESTION_OPTIONS received — at barrier")
                     break
-                # ignore LOBBY_STATUS while waiting
 
-            # synchronize all bots, then fire ANSWER at the same instant
+            # synchronize all bots, then fire ANSWER (with optional stagger)
             barrier.wait()
+            if stagger_ms > 0 and bot_index > 0:
+                delay = bot_index * stagger_ms / 1000.0
+                time.sleep(delay)
+                print(f"[{name}] staggered +{bot_index * stagger_ms}ms")
+
             send_frame(sock, ANSWER, bytes([answer_index]))
             sent_at = time.monotonic_ns()
             print(f"[{name}] ANSWER({answer_index}) sent at {sent_at}")
 
-            # wait for ROUND_END
+            # wait for round result (WRONG_ANSWER, ROUND_END, SCORE, GAME_END)
             while True:
                 t, b = read_frame(sock)
                 if t == ROUND_END:
@@ -121,10 +134,20 @@ def bot_thread(
                     break
                 if t == WRONG_ANSWER:
                     print(f"[{name}] WRONG_ANSWER")
+                if t == SCORE:
+                    print(f"[{name}] SCORE received")
                 if t == GAME_END:
                     winner_id = b[0]
                     result.won = winner_id == result.player_id
                     print(f"[{name}] GAME_END  winner_id={winner_id}")
+                    break
+
+            # graceful disconnect
+            send_frame(sock, DISCONNECT)
+            while True:
+                t, b = read_frame(sock)
+                if t == DISCONNECT_ACK:
+                    print(f"[{name}] DISCONNECT_ACK")
                     break
 
     except threading.BrokenBarrierError:
@@ -143,10 +166,13 @@ def main() -> None:
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--bots", type=int, default=2, help="number of bots (default: 2)")
-    parser.add_argument("--answer", type=int, default=0, help="answer index to send (default: 0)")
+    parser.add_argument("--answer", type=int, default=2,
+                        help="answer index to send (default: 2, correct for Q1)")
+    parser.add_argument("--stagger-ms", type=int, default=0,
+                        help="stagger delay: bot[i] waits i*MS before sending ANSWER (default: 0)")
     args = parser.parse_args()
 
-    print(f"Starting {args.bots} bots → {args.host}:{args.port}  answer={args.answer}")
+    print(f"Starting {args.bots} bots → {args.host}:{args.port}  answer={args.answer}  stagger={args.stagger_ms}ms")
     print("(Run 'python cli/observe.py' in another terminal to watch the trace)\n")
 
     barrier = threading.Barrier(args.bots)
@@ -154,7 +180,7 @@ def main() -> None:
     threads = [
         threading.Thread(
             target=bot_thread,
-            args=(f"bot{i+1}", args.host, args.port, args.answer, barrier, results[i]),
+            args=(f"bot{i+1}", i, args.host, args.port, args.answer, args.stagger_ms, barrier, results[i]),
             daemon=True,
         )
         for i in range(args.bots)
