@@ -241,7 +241,8 @@ public class GuiClient {
           } else if (message instanceof QuestionChunkMessage chunk) {
             questionArea.append(chunk.chunk());
           } else if (message instanceof WrongAnswerMessage) {
-            log("不正解。もう一度考えてください。");
+            disableAnswerButtons();
+            log("残念、不正解！");
           } else if (message instanceof RoundEndMessage end) {
             disableAnswerButtons();
             if (end.winnerId() == 0) {
