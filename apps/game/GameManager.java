@@ -2,13 +2,12 @@ package game;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
-
 import java.util.HashSet;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import metrics.EventBus;
 import server.ClientSession;
@@ -327,7 +326,12 @@ public class GameManager {
   private void broadcastScore() {
     List<ScoreEntry> entries =
         lobby.getSessions().stream()
-            .map(s -> new ScoreEntry(s.getPlayerId(), s.getPlayerName(), scores.getOrDefault(s.getPlayerId(), 0)))
+            .map(
+                s ->
+                    new ScoreEntry(
+                        s.getPlayerId(),
+                        s.getPlayerName(),
+                        scores.getOrDefault(s.getPlayerId(), 0)))
             .toList();
     broadcast(MessageType.SCORE, new ScoreMessage(entries).toBytes());
   }

@@ -1,20 +1,3 @@
-
-
-import shared.c2s.ConnectMessage;
-import shared.s2c.LobbyStatusMessage;
-import shared.codec.FrameDecoder;
-import shared.codec.FrameEncoder;
-import shared.codec.MessageType;
-import shared.s2c.ConnectAckMessage;
-import shared.s2c.ConnectNgMessage;
-import shared.s2c.DisconnectAckMessage;
-import shared.s2c.GameEndMessage;
-import shared.s2c.QuestionChunkMessage;
-import shared.s2c.QuestionOptionsMessage;
-import shared.s2c.RoundEndMessage;
-import shared.s2c.ScoreMessage;
-import shared.s2c.ServerMessage;
-import shared.s2c.WrongAnswerMessage;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -22,6 +5,21 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.Scanner;
+import shared.c2s.ConnectMessage;
+import shared.codec.FrameDecoder;
+import shared.codec.FrameEncoder;
+import shared.codec.MessageType;
+import shared.s2c.ConnectAckMessage;
+import shared.s2c.ConnectNgMessage;
+import shared.s2c.DisconnectAckMessage;
+import shared.s2c.GameEndMessage;
+import shared.s2c.LobbyStatusMessage;
+import shared.s2c.QuestionChunkMessage;
+import shared.s2c.QuestionOptionsMessage;
+import shared.s2c.RoundEndMessage;
+import shared.s2c.ScoreMessage;
+import shared.s2c.ServerMessage;
+import shared.s2c.WrongAnswerMessage;
 
 public class Client {
 
