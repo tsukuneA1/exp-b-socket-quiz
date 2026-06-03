@@ -1,12 +1,7 @@
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.util.Locale;
-import java.util.Scanner;
+
+
 import shared.c2s.ConnectMessage;
+import shared.s2c.LobbyStatusMessage;
 import shared.codec.FrameDecoder;
 import shared.codec.FrameEncoder;
 import shared.codec.MessageType;
@@ -14,37 +9,28 @@ import shared.s2c.ConnectAckMessage;
 import shared.s2c.ConnectNgMessage;
 import shared.s2c.DisconnectAckMessage;
 import shared.s2c.GameEndMessage;
-import shared.s2c.LobbyStatusMessage;
 import shared.s2c.QuestionChunkMessage;
 import shared.s2c.QuestionOptionsMessage;
 import shared.s2c.RoundEndMessage;
 import shared.s2c.ScoreMessage;
 import shared.s2c.ServerMessage;
 import shared.s2c.WrongAnswerMessage;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.util.Scanner;
 
 public class Client {
 
-  private enum ClientState {
-    CONNECTING,
-    WAITING,
-    READY,
-    PLAYING,
-    FINISHED,
-    DISCONNECTED
-  }
-
   private static volatile boolean running = true;
-  private static volatile ClientState state = ClientState.CONNECTING;
-
-  private static String playerName = "Player1";
-  private static int playerId = -1;
-  private static int readyCount = 0;
-  private static int totalCount = 0;
-  private static int currentRound = 0;
-  private static int optionCount = 0;
+  // お手付きフラグ: 誤答後は入力を受け付けない
+  private static volatile boolean wrongAnswered = false;
 
   public static void main(String[] args) throws IOException {
-    playerName = (args.length > 0) ? args[0] : "Player1";
+    String playerName = (args.length > 0) ? args[0] : "Player1";
     int port = (args.length > 1) ? Integer.parseInt(args[1]) : Server.DEFAULT_PORT;
 
     Socket socket = new Socket(InetAddress.getByName("localhost"), port);
@@ -66,10 +52,7 @@ public class Client {
       ServerMessage firstMessage = FrameDecoder.decodeServer(firstFrame);
 
       if (firstMessage instanceof ConnectAckMessage ack) {
-        playerId = ack.playerId();
-        state = ClientState.WAITING;
-        System.out.println("Connected. Your playerId = " + playerId);
-        printStatus();
+        System.out.println("Connected. Your playerId = " + ack.playerId());
       } else if (firstMessage instanceof ConnectNgMessage ng) {
         System.out.println("Connection failed. reason=" + ng.reason());
         return;
@@ -92,7 +75,6 @@ public class Client {
       }
 
     } finally {
-      state = ClientState.DISCONNECTED;
       socket.close();
       System.out.println("Socket closed.");
     }
@@ -116,13 +98,14 @@ public class Client {
 
       try {
         if (line.matches("\\d+")) {
+          // お手付き後は回答を送らない
+          if (wrongAnswered) {
+            System.out.println("すでに誤答済みです。次の問題をお待ちください。");
+            continue;
+          }
           int answerIndex = Integer.parseInt(line);
           if (answerIndex < 0 || answerIndex > 255) {
             System.out.println("Answer index must be between 0 and 255.");
-            continue;
-          }
-          if (optionCount > 0 && answerIndex >= optionCount) {
-            System.out.println("回答番号は 0-" + (optionCount - 1) + " の範囲で入力してください。");
             continue;
           }
           byte[] body = new byte[] {(byte) answerIndex};
@@ -131,21 +114,18 @@ public class Client {
           continue;
         }
         String[] parts = line.split("\\s+");
-        String command = parts[0].toLowerCase(Locale.ROOT);
+        String command = parts[0].toLowerCase();
         switch (command) {
-          case "ready", "r", "準備" -> {
+          case "ready" -> {
             FrameEncoder.writeFrame(out, MessageType.READY, new byte[0]);
-            state = ClientState.READY;
-            System.out.println("準備完了にしました。他のプレイヤーを待っています...");
-            printStatus();
+            System.out.println("Sent READY");
           }
-          case "d", "quit", "exit", "終了" -> {
+          case "d" -> {
             FrameEncoder.writeFrame(out, MessageType.DISCONNECT, new byte[0]);
             System.out.println("Sent DISCONNECT");
             running = false;
           }
-          case "status", "s", "状態" -> printStatus();
-          case "h", "help", "ヘルプ" -> printHelp();
+          case "h" -> printHelp();
           default -> {
             System.out.println("Unknown command: " + command);
             System.out.println("Type 'h' to show available commands.");
@@ -170,85 +150,60 @@ public class Client {
           System.out.println();
           System.out.println("Received DISCONNECT_ACK");
           System.out.println("Disconnected from server.");
-          exitAfterServerDisconnect();
+          running = false;
+          break;
         } else if (message instanceof ConnectAckMessage ack) {
-          playerId = ack.playerId();
-          state = ClientState.WAITING;
           System.out.println();
-          System.out.println("Received CONNECT_ACK, playerId=" + playerId);
-          printStatus();
+          System.out.println("Received CONNECT_ACK, playerId=" + ack.playerId());
         } else if (message instanceof ConnectNgMessage ng) {
           System.out.println();
           System.out.println("Received CONNECT_NG, reason=" + ng.reason());
-          exitAfterServerDisconnect();
+          running = false;
+          break;
         } else if (message instanceof QuestionChunkMessage chunk) {
           System.out.print(chunk.chunk());
         } else if (message instanceof QuestionOptionsMessage opts) {
-          state = ClientState.PLAYING;
-          currentRound++;
-          optionCount = opts.options().size();
-
           System.out.println();
-          System.out.println("==============================");
-          System.out.println("第" + currentRound + "問");
-          System.out.println("==============================");
+          // 次の問題が来たらお手付きフラグをリセット
+          wrongAnswered = false;
           System.out.println("--- 選択肢 ---");
           for (int i = 0; i < opts.options().size(); i++) {
             System.out.println("  " + i + ": " + opts.options().get(i));
           }
-          System.out.println();
-          System.out.println("回答する番号を入力してください。例: 2");
         } else if (message instanceof WrongAnswerMessage) {
           System.out.println();
-          System.out.println("不正解！もう一度考えてください。");
+          System.out.println("残念、不正解！");
+          wrongAnswered = true;
         } else if (message instanceof RoundEndMessage end) {
-          optionCount = 0;
           System.out.println();
+          wrongAnswered = false;
           if (end.winnerId() == 0) {
             System.out.println("全員不正解。正解は選択肢" + end.correctIndex() + "でした。");
-          } else if (end.winnerId() == playerId) {
-            System.out.println("あなたが正解！正解は選択肢" + end.correctIndex() + "でした。");
           } else {
             System.out.println(end.winnerName() + "が正解！正解は選択肢" + end.correctIndex() + "でした。");
           }
         } else if (message instanceof ScoreMessage score) {
-          System.out.println();
-          System.out.println("=== スコア ===");
+          System.out.println("--- スコア ---");
           score
               .scores()
-              .forEach(
-                  e -> {
-                    String marker = e.playerId() == playerId ? " <- you" : "";
-                    System.out.println("  " + e.playerName() + ": " + e.score() + "点" + marker);
-                  });
-          System.out.println("=============");
+              .forEach(e -> System.out.println("  " + e.playerName() + ": " + e.score() + "点"));
         } else if (message instanceof LobbyStatusMessage status) {
-          readyCount = status.readyCount();
-          totalCount = status.totalCount();
-
           System.out.println();
-          System.out.println("Ready: " + readyCount + "/" + totalCount + " players");
-          if (readyCount < totalCount) {
-            System.out.println("他のプレイヤーの準備を待っています...");
-          } else {
-            System.out.println("全員準備完了。ゲーム開始を待っています...");
+          System.out.println(
+              "Ready: " + status.readyCount() + "/" + status.totalCount() + " players");
+          if (status.readyCount() < status.totalCount()) {
+            System.out.println("Waiting for other players to type 'ready'...");
           }
-          printStatus();
         } else if (message instanceof GameEndMessage end) {
-          state = ClientState.FINISHED;
-          optionCount = 0;
-
           System.out.println();
           System.out.println("=== ゲーム終了 ===");
           if (end.winnerId() == 0) {
             System.out.println("結果: 引き分けです。");
-          } else if (end.winnerId() == playerId) {
-            System.out.println("結果: あなたの勝ちです！");
           } else {
             System.out.println("勝者: " + end.winnerName());
           }
-          printStatus();
-          exitAfterServerDisconnect();
+          running = false;
+          break;
         } else {
           System.out.println();
           System.out.println("Received server message: " + message);
@@ -257,50 +212,31 @@ public class Client {
       } catch (EOFException e) {
         System.out.println();
         System.out.println("Server closed the connection.");
-        exitAfterServerDisconnect();
+        running = false;
+        break;
       } catch (IOException e) {
         if (running) {
           System.out.println();
           System.out.println("Connection error: " + e.getMessage());
         }
-        exitAfterServerDisconnect();
+        running = false;
+        break;
       } catch (RuntimeException e) {
         System.out.println();
         System.out.println("Failed to decode server message: " + e.getMessage());
-        exitAfterServerDisconnect();
+        running = false;
+        break;
       }
     }
-  }
-
-  private static void exitAfterServerDisconnect() {
-    running = false;
-    state = ClientState.DISCONNECTED;
-    System.exit(0);
-  }
-
-  private static void printStatus() {
-    System.out.println();
-    System.out.println("=== 現在の状態 ===");
-    System.out.println("Player : " + playerName + " (id=" + playerId + ")");
-    System.out.println("Status : " + state);
-    if (currentRound > 0) {
-      System.out.println("Round  : " + currentRound);
-    }
-    if (totalCount > 0) {
-      System.out.println("Ready  : " + readyCount + "/" + totalCount);
-    }
-    System.out.println("================");
-    System.out.println();
   }
 
   private static void printHelp() {
     System.out.println();
     System.out.println("Commands:");
-    System.out.println("  ready / r / 準備  : signal that you are ready to start");
-    System.out.println("  <number>          : send answer index to server");
-    System.out.println("  status / s / 状態 : show current client status");
-    System.out.println("  d / quit / exit   : disconnect from server");
-    System.out.println("  h / help          : show this help");
+    System.out.println("  ready     : signal that you are ready to start");
+    System.out.println("  <number>  : send answer index to server");
+    System.out.println("  d         : disconnect from server");
+    System.out.println("  h         : show this help");
     System.out.println();
   }
 }

@@ -2,8 +2,10 @@ package game;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.Arrays;
+
 import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -23,7 +25,7 @@ public class GameManager {
   private boolean accepting = false;
   private boolean streaming = false;
 
-  private final int[] scores = new int[GameConfig.MAX_PLAYERS + 1];
+  private final Map<Integer, Integer> scores = new ConcurrentHashMap<>();
   private int wrongCount = 0;
   private final Set<Integer> wrongPlayers = new HashSet<>();
   private int currentCorrectIndex = 0;
@@ -107,7 +109,7 @@ public class GameManager {
   }
 
   private void resetGameState() {
-    Arrays.fill(scores, 0);
+    scores.clear();
     accepting = false;
     streaming = false;
     wrongCount = 0;
@@ -219,6 +221,12 @@ public class GameManager {
       return;
     }
 
+    // お手付き判定: すでに誤答済みのプレイヤーは無視する
+    if (wrongPlayers.contains(playerId)) {
+      System.out.println("[GameManager] Already answered wrong: playerId=" + playerId);
+      return;
+    }
+
     System.out.println("[GameManager] ANSWER: playerId=" + playerId + " index=" + answerIndex);
 
     if (answerIndex == currentCorrectIndex) {
@@ -242,7 +250,7 @@ public class GameManager {
               + "}");
 
       streaming = false;
-      scores[playerId]++;
+      scores.merge(playerId, 1, Integer::sum);
 
       System.out.println("[GameManager] Correct! playerId=" + playerId);
       broadcast(
@@ -259,9 +267,7 @@ public class GameManager {
           "{\"player\":" + jsonString(playerName) + ",\"round\":" + currentRound + "}");
       sendTo(session.getOut(), MessageType.WRONG_ANSWER, new WrongAnswerMessage().toBytes());
 
-      if (!wrongPlayers.add(playerId)) {
-        return;
-      }
+      wrongPlayers.add(playerId);
       int wrong = ++wrongCount;
       if (wrong >= lobby.size()) {
         streaming = false;
@@ -293,7 +299,7 @@ public class GameManager {
   private void broadcastScore() {
     List<ScoreEntry> entries =
         lobby.getSessions().stream()
-            .map(s -> new ScoreEntry(s.getPlayerId(), s.getPlayerName(), scores[s.getPlayerId()]))
+            .map(s -> new ScoreEntry(s.getPlayerId(), s.getPlayerName(), scores.getOrDefault(s.getPlayerId(), 0)))
             .toList();
     broadcast(MessageType.SCORE, new ScoreMessage(entries).toBytes());
   }
@@ -317,7 +323,7 @@ public class GameManager {
     boolean tie = false;
 
     for (ClientSession session : lobby.getSessions()) {
-      int score = scores[session.getPlayerId()];
+      int score = scores.getOrDefault(session.getPlayerId(), 0);
       if (score > maxScore) {
         maxScore = score;
         winner = session;
