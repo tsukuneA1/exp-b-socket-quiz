@@ -13,11 +13,17 @@ client:
 client-port:
 	mvn exec:java -Dexec.mainClass=Client -Dexec.args="$(name) $(port)"
 
+client-host:
+	mvn exec:java -Dexec.mainClass=Client -Dexec.args="$(name) $(host) $(port)"
+
 gui-client:
 	mvn exec:java -Dexec.mainClass=GuiClient -Dexec.args="$(name)"
 
 gui-client-port:
 	mvn exec:java -Dexec.mainClass=GuiClient -Dexec.args="$(name) $(port)"
+
+gui-client-host:
+	mvn exec:java -Dexec.mainClass=GuiClient -Dexec.args="$(name) $(host) $(port)"
 
 test:
 	mvn test

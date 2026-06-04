@@ -2,6 +2,8 @@ package game;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +21,6 @@ public class GameManager {
 
   private final LobbyManager lobby;
   private final BlockingQueue<GameEvent> inbox;
-  private final List<Question> questions = Question.ALL;
 
   private boolean accepting = false;
   private boolean streaming = false;
@@ -54,6 +55,9 @@ public class GameManager {
   }
 
   private void playGame() {
+    List<Question> questions = new ArrayList<>(Question.ALL);
+    Collections.shuffle(questions);
+    questions = questions.subList(0, Math.min(GameConfig.QUESTIONS_PER_GAME, questions.size()));
     System.out.println("[GameManager] Game started. questions=" + questions.size());
 
     for (int i = 0; i < questions.size(); i++) {
@@ -89,7 +93,12 @@ public class GameManager {
 
       while (!roundDone) {
         try {
-          handleEvent(takeEvent());
+          GameEvent event = pollEvent(remainingQuestionTimeMs());
+          if (event == null) {
+            finishRoundByTimeout();
+          } else {
+            handleEvent(event);
+          }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
           return;
@@ -143,6 +152,10 @@ public class GameManager {
     int[] codePoints = text.codePoints().toArray();
 
     for (int cp : codePoints) {
+      if (remainingQuestionTimeMs() <= 0) {
+        finishRoundByTimeout();
+        break;
+      }
       if (!streaming) {
         System.out.println("[GameManager] Streaming stopped by answer.");
         break;
@@ -162,6 +175,25 @@ public class GameManager {
       }
     }
     return true;
+  }
+
+  private long remainingQuestionTimeMs() {
+    long elapsedMs = (System.nanoTime() - roundStartNs) / 1_000_000;
+    return Math.max(0, GameConfig.QUESTION_TIMEOUT_MS - elapsedMs);
+  }
+
+  private void finishRoundByTimeout() {
+    if (roundDone) {
+      return;
+    }
+    streaming = false;
+    accepting = false;
+    System.out.println("[GameManager] Time up. Moving to next round.");
+    EventBus.emit("round_timeout", "{\"round\":" + currentRound + "}");
+    broadcast(
+        MessageType.ROUND_END,
+        new RoundEndMessage(0, currentCorrectIndex, "TIME_UP").toBytes());
+    roundDone = true;
   }
 
   private void drainPendingEvents() {

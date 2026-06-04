@@ -22,6 +22,7 @@ import shared.s2c.ServerMessage;
 import shared.s2c.WrongAnswerMessage;
 
 public class Client {
+  private static final String TIME_UP_MARKER = "TIME_UP";
 
   private static volatile boolean running = true;
   // お手付きフラグ: 誤答後は入力を受け付けない
@@ -29,9 +30,15 @@ public class Client {
 
   public static void main(String[] args) throws IOException {
     String playerName = (args.length > 0) ? args[0] : "Player1";
-    int port = (args.length > 1) ? Integer.parseInt(args[1]) : Server.DEFAULT_PORT;
+    String host = (args.length > 1 && !isInteger(args[1])) ? args[1] : "localhost";
+    int port =
+        (args.length > 2)
+            ? Integer.parseInt(args[2])
+            : (args.length > 1 && isInteger(args[1]))
+                ? Integer.parseInt(args[1])
+                : Server.DEFAULT_PORT;
 
-    Socket socket = new Socket(InetAddress.getByName("localhost"), port);
+    Socket socket = new Socket(InetAddress.getByName(host), port);
 
     try {
       DataInputStream in = new DataInputStream(socket.getInputStream());
@@ -39,7 +46,7 @@ public class Client {
 
       System.out.println("=== Socket Quiz Client ===");
       System.out.println("Player name: " + playerName);
-      System.out.println("Server: localhost:" + port);
+      System.out.println("Server: " + host + ":" + port);
       System.out.println();
 
       ConnectMessage connect = new ConnectMessage(playerName);
@@ -75,6 +82,15 @@ public class Client {
     } finally {
       socket.close();
       System.out.println("Socket closed.");
+    }
+  }
+
+  private static boolean isInteger(String value) {
+    try {
+      Integer.parseInt(value);
+      return true;
+    } catch (NumberFormatException e) {
+      return false;
     }
   }
 
@@ -175,7 +191,9 @@ public class Client {
         } else if (message instanceof RoundEndMessage end) {
           System.out.println();
           wrongAnswered = false;
-          if (end.winnerId() == 0) {
+          if (end.winnerId() == 0 && TIME_UP_MARKER.equals(end.winnerName())) {
+            System.out.println("タイムアップ！正解は選択肢" + end.correctIndex() + "でした。");
+          } else if (end.winnerId() == 0) {
             System.out.println("全員不正解。正解は選択肢" + end.correctIndex() + "でした。");
           } else {
             System.out.println(end.winnerName() + "が正解！正解は選択肢" + end.correctIndex() + "でした。");

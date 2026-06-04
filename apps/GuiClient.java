@@ -1,3 +1,4 @@
+import game.GameConfig;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
@@ -26,6 +27,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import shared.c2s.ConnectMessage;
 import shared.codec.FrameDecoder;
 import shared.codec.FrameEncoder;
@@ -44,6 +46,7 @@ import shared.s2c.ServerMessage;
 import shared.s2c.WrongAnswerMessage;
 
 public class GuiClient {
+  private static final String TIME_UP_MARKER = "TIME_UP";
   private static final Color[] ANSWER_COLORS = {
     new Color(220, 64, 64),
     new Color(64, 132, 220),
@@ -56,6 +59,7 @@ public class GuiClient {
   private final JLabel readyLabel = new JLabel("Ready: -/-");
   private final LobbyIconsPanel lobbyIconsPanel = new LobbyIconsPanel();
   private final JPanel cards = new JPanel(new CardLayout());
+  private final TimerPanel timerPanel = new TimerPanel();
 
   private final JTextArea questionArea = new JTextArea();
   private final JTextArea logArea = new JTextArea();
@@ -65,6 +69,7 @@ public class GuiClient {
   private final JButton[] answerButtons = new JButton[4];
 
   private final String playerName;
+  private final String host;
   private final int port;
   private final JFrame frame = new JFrame("Socket Quiz GUI");
 
@@ -78,8 +83,9 @@ public class GuiClient {
   private List<ScoreEntry> latestScores = new ArrayList<>();
   private JPanel resultPanel;
 
-  public GuiClient(String playerName, int port) {
+  public GuiClient(String playerName, String host, int port) {
     this.playerName = playerName;
+    this.host = host;
     this.port = port;
 
     playerLabel.setText("Player: " + playerName);
@@ -135,6 +141,7 @@ public class GuiClient {
 
     JPanel leftPanel = new QuizStagePanel();
     leftPanel.setLayout(new BorderLayout(0, 12));
+    leftPanel.add(timerPanel, BorderLayout.NORTH);
     leftPanel.add(questionScroll, BorderLayout.CENTER);
     leftPanel.add(answerPanel, BorderLayout.SOUTH);
 
@@ -157,14 +164,29 @@ public class GuiClient {
 
   public static void main(String[] args) {
     String playerName = (args.length > 0) ? args[0] : "Player1";
-    int port = (args.length > 1) ? Integer.parseInt(args[1]) : Server.DEFAULT_PORT;
+    String host = (args.length > 1 && !isInteger(args[1])) ? args[1] : "localhost";
+    int port =
+        (args.length > 2)
+            ? Integer.parseInt(args[2])
+            : (args.length > 1 && isInteger(args[1]))
+                ? Integer.parseInt(args[1])
+                : Server.DEFAULT_PORT;
 
     SwingUtilities.invokeLater(
         () -> {
-          GuiClient client = new GuiClient(playerName, port);
+          GuiClient client = new GuiClient(playerName, host, port);
           client.show();
           new Thread(client::connectAndReceive, "gui-client-receiver").start();
         });
+  }
+
+  private static boolean isInteger(String value) {
+    try {
+      Integer.parseInt(value);
+      return true;
+    } catch (NumberFormatException e) {
+      return false;
+    }
   }
 
   public void show() {
@@ -173,7 +195,7 @@ public class GuiClient {
 
   private void connectAndReceive() {
     try {
-      socket = new Socket(InetAddress.getByName("localhost"), port);
+      socket = new Socket(InetAddress.getByName(host), port);
       in = new DataInputStream(socket.getInputStream());
       out = new DataOutputStream(socket.getOutputStream());
 
@@ -191,9 +213,11 @@ public class GuiClient {
     } catch (ConnectException e) {
       showErrorOnUi(
           "サーバーに接続できませんでした。先に Server を起動してください。\n"
-              + "起動例: mvn exec:java -Dexec.mainClass=Server\n"
-              + "接続先: localhost:"
-              + port);
+                            + "起動例: mvn exec:java -Dexec.mainClass=Server\n"
+                            + "接続先: "
+                            + host
+                            + ":"
+                            + port);
     } catch (IOException e) {
       showErrorOnUi("通信エラー: " + e.getMessage());
     } catch (RuntimeException e) {
@@ -228,6 +252,7 @@ public class GuiClient {
           } else if (message instanceof QuestionOptionsMessage options) {
             currentRound++;
             statusLabel.setText("Status: PLAYING");
+            timerPanel.start(GameConfig.QUESTION_TIMEOUT_MS);
             questionArea.setText("第" + currentRound + "問\n");
             for (int i = 0; i < answerButtons.length; i++) {
               if (i < options.options().size()) {
@@ -245,7 +270,12 @@ public class GuiClient {
             log("残念、不正解！");
           } else if (message instanceof RoundEndMessage end) {
             disableAnswerButtons();
-            if (end.winnerId() == 0) {
+            timerPanel.stopTimer();
+            if (end.winnerId() == 0 && TIME_UP_MARKER.equals(end.winnerName())) {
+              timerPanel.showTimeUp();
+              questionArea.append("\n\nタイムアップ！");
+              log("タイムアップ！正解は選択肢" + end.correctIndex() + "でした。");
+            } else if (end.winnerId() == 0) {
               log("全員不正解。正解は選択肢" + end.correctIndex() + "でした。");
             } else {
               log(end.winnerName() + " が正解。正解は選択肢" + end.correctIndex() + "でした。");
@@ -263,6 +293,7 @@ public class GuiClient {
           } else if (message instanceof GameEndMessage end) {
             statusLabel.setText("Status: FINISHED");
             disableAnswerButtons();
+            timerPanel.reset();
             readyButton.setEnabled(false);
             disconnectButton.setEnabled(false);
             if (end.winnerId() == 0) {
@@ -355,6 +386,7 @@ public class GuiClient {
           readyButton.setEnabled(false);
           disconnectButton.setEnabled(false);
           disableAnswerButtons();
+          timerPanel.reset();
         });
   }
 
@@ -380,6 +412,7 @@ public class GuiClient {
     currentRound = 0;
     questionArea.setText("");
     disableAnswerButtons();
+    timerPanel.reset();
     statusLabel.setText("Status: WAITING");
     ((CardLayout) cards.getLayout()).show(cards, "GAME");
   }
@@ -438,6 +471,98 @@ public class GuiClient {
       for (int x = 24; x < w; x += 56) {
         g2.fillOval(x, 18, 18, 18);
       }
+      g2.dispose();
+    }
+  }
+
+  private static class TimerPanel extends JPanel {
+    private static final int DIAMETER = 74;
+    private int totalMs = GameConfig.QUESTION_TIMEOUT_MS;
+    private int remainingMs = GameConfig.QUESTION_TIMEOUT_MS;
+    private boolean timeUp = false;
+    private Timer timer;
+
+    TimerPanel() {
+      setOpaque(false);
+      setPreferredSize(new Dimension(120, 92));
+      setVisible(false);
+    }
+
+    void start(int totalMs) {
+      setVisible(true);
+      stopTimer();
+      this.totalMs = Math.max(1, totalMs);
+      this.remainingMs = this.totalMs;
+      this.timeUp = false;
+      long startedAt = System.currentTimeMillis();
+      timer =
+          new Timer(
+              100,
+              e -> {
+                long elapsed = System.currentTimeMillis() - startedAt;
+                remainingMs = (int) Math.max(0, this.totalMs - elapsed);
+                if (remainingMs == 0) {
+                  stopTimer();
+                }
+                repaint();
+              });
+      timer.start();
+      repaint();
+    }
+
+    void stopTimer() {
+      if (timer != null) {
+        timer.stop();
+        timer = null;
+      }
+    }
+
+    void showTimeUp() {
+      stopTimer();
+      remainingMs = 0;
+      timeUp = true;
+      repaint();
+    }
+
+    void reset() {
+      stopTimer();
+      remainingMs = totalMs;
+      timeUp = false;
+      setVisible(false);
+      repaint();
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+      super.paintComponent(g);
+      Graphics2D g2 = (Graphics2D) g.create();
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+      int x = (getWidth() - DIAMETER) / 2;
+      int y = 8;
+      double ratio = Math.max(0.0, Math.min(1.0, remainingMs / (double) totalMs));
+      Color activeColor =
+          ratio > 0.5
+              ? new Color(75, 220, 120)
+              : ratio > 0.25 ? new Color(255, 207, 64) : new Color(239, 84, 84);
+
+      g2.setColor(new Color(255, 255, 255, 48));
+      g2.fillOval(x, y, DIAMETER, DIAMETER);
+      g2.setColor(new Color(11, 17, 43));
+      g2.fillOval(x + 8, y + 8, DIAMETER - 16, DIAMETER - 16);
+
+      g2.setColor(activeColor);
+      g2.fillArc(x, y, DIAMETER, DIAMETER, 90, (int) Math.round(-360 * ratio));
+      g2.setColor(new Color(11, 17, 43));
+      g2.fillOval(x + 10, y + 10, DIAMETER - 20, DIAMETER - 20);
+
+      g2.setColor(timeUp ? new Color(255, 224, 92) : Color.WHITE);
+      g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, timeUp ? 12 : 19));
+      String text = timeUp ? "TIME UP" : (int) Math.ceil(remainingMs / 1000.0) + "s";
+      int textWidth = g2.getFontMetrics().stringWidth(text);
+      int textY = y + DIAMETER / 2 + g2.getFontMetrics().getAscent() / 2 - 3;
+      g2.drawString(text, x + DIAMETER / 2 - textWidth / 2, textY);
+
       g2.dispose();
     }
   }
