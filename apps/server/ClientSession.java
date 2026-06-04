@@ -100,6 +100,7 @@ public class ClientSession implements Runnable {
       System.out.println("Session lost: playerId=" + playerId + " " + e.getMessage());
     } finally {
       lobby.remove(this);
+      broadcastLobbyStatus();
       try {
         socket.close();
       } catch (IOException ignored) {

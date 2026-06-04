@@ -191,8 +191,7 @@ public class GameManager {
     System.out.println("[GameManager] Time up. Moving to next round.");
     EventBus.emit("round_timeout", "{\"round\":" + currentRound + "}");
     broadcast(
-        MessageType.ROUND_END,
-        new RoundEndMessage(0, currentCorrectIndex, "TIME_UP").toBytes());
+        MessageType.ROUND_END, new RoundEndMessage(0, currentCorrectIndex, "TIME_UP").toBytes());
     roundDone = true;
   }
 

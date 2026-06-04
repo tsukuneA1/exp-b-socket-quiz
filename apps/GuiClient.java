@@ -16,9 +16,15 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.SourceDataLine;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -47,6 +53,10 @@ import shared.s2c.WrongAnswerMessage;
 
 public class GuiClient {
   private static final String TIME_UP_MARKER = "TIME_UP";
+  private static final Path QUESTION_SOUND = Path.of("assets", "sounds", "question.mp3");
+  private static final Path CORRECT_SOUND = Path.of("assets", "sounds", "correct.mp3");
+  private static final Path WRONG_SOUND = Path.of("assets", "sounds", "wrong.mp3");
+  private static final Path RESULT_SOUND = Path.of("assets", "sounds", "result.mp3");
   private static final Color[] ANSWER_COLORS = {
     new Color(220, 64, 64),
     new Color(64, 132, 220),
@@ -60,6 +70,7 @@ public class GuiClient {
   private final LobbyIconsPanel lobbyIconsPanel = new LobbyIconsPanel();
   private final JPanel cards = new JPanel(new CardLayout());
   private final TimerPanel timerPanel = new TimerPanel();
+  private final FeedbackPanel feedbackPanel = new FeedbackPanel();
 
   private final JTextArea questionArea = new JTextArea();
   private final JTextArea logArea = new JTextArea();
@@ -139,9 +150,14 @@ public class GuiClient {
     questionScroll.getViewport().setOpaque(false);
     questionScroll.setBorder(null);
 
+    JPanel roundInfoPanel = new JPanel(new BorderLayout(8, 0));
+    roundInfoPanel.setOpaque(false);
+    roundInfoPanel.add(timerPanel, BorderLayout.WEST);
+    roundInfoPanel.add(feedbackPanel, BorderLayout.CENTER);
+
     JPanel leftPanel = new QuizStagePanel();
     leftPanel.setLayout(new BorderLayout(0, 12));
-    leftPanel.add(timerPanel, BorderLayout.NORTH);
+    leftPanel.add(roundInfoPanel, BorderLayout.NORTH);
     leftPanel.add(questionScroll, BorderLayout.CENTER);
     leftPanel.add(answerPanel, BorderLayout.SOUTH);
 
@@ -213,11 +229,11 @@ public class GuiClient {
     } catch (ConnectException e) {
       showErrorOnUi(
           "サーバーに接続できませんでした。先に Server を起動してください。\n"
-                            + "起動例: mvn exec:java -Dexec.mainClass=Server\n"
-                            + "接続先: "
-                            + host
-                            + ":"
-                            + port);
+              + "起動例: mvn exec:java -Dexec.mainClass=Server\n"
+              + "接続先: "
+              + host
+              + ":"
+              + port);
     } catch (IOException e) {
       showErrorOnUi("通信エラー: " + e.getMessage());
     } catch (RuntimeException e) {
@@ -253,6 +269,8 @@ public class GuiClient {
             currentRound++;
             statusLabel.setText("Status: PLAYING");
             timerPanel.start(GameConfig.QUESTION_TIMEOUT_MS);
+            feedbackPanel.clear();
+            playQuestionStartSound();
             questionArea.setText("第" + currentRound + "問\n");
             for (int i = 0; i < answerButtons.length; i++) {
               if (i < options.options().size()) {
@@ -267,6 +285,8 @@ public class GuiClient {
             questionArea.append(chunk.chunk());
           } else if (message instanceof WrongAnswerMessage) {
             disableAnswerButtons();
+            feedbackPanel.showWrong();
+            playWrongSound();
             log("残念、不正解！");
           } else if (message instanceof RoundEndMessage end) {
             disableAnswerButtons();
@@ -278,6 +298,8 @@ public class GuiClient {
             } else if (end.winnerId() == 0) {
               log("全員不正解。正解は選択肢" + end.correctIndex() + "でした。");
             } else {
+              feedbackPanel.showCorrect();
+              playCorrectSound();
               log(end.winnerName() + " が正解。正解は選択肢" + end.correctIndex() + "でした。");
             }
           } else if (message instanceof ScoreMessage score) {
@@ -294,6 +316,7 @@ public class GuiClient {
             statusLabel.setText("Status: FINISHED");
             disableAnswerButtons();
             timerPanel.reset();
+            playResultSound();
             readyButton.setEnabled(false);
             disconnectButton.setEnabled(false);
             if (end.winnerId() == 0) {
@@ -379,6 +402,90 @@ public class GuiClient {
     SwingUtilities.invokeLater(() -> statusLabel.setText("Status: " + status));
   }
 
+  private void playQuestionStartSound() {
+    playMp3OrTone(QUESTION_SOUND, new Tone(220, 120), new Tone(0, 40), new Tone(294, 180));
+  }
+
+  private void playCorrectSound() {
+    playMp3OrTone(CORRECT_SOUND, new Tone(880, 120), new Tone(0, 35), new Tone(1175, 170));
+  }
+
+  private void playWrongSound() {
+    playMp3OrTone(WRONG_SOUND, new Tone(170, 180), new Tone(130, 260));
+  }
+
+  private void playResultSound() {
+    playMp3OrTone(RESULT_SOUND, new Tone(523, 120), new Tone(659, 120), new Tone(784, 260));
+  }
+
+  private void playMp3OrTone(Path soundPath, Tone... fallbackTones) {
+    if (Files.exists(soundPath)) {
+      playMp3Async(soundPath, fallbackTones);
+    } else {
+      playSoundAsync(fallbackTones);
+    }
+  }
+
+  private void playMp3Async(Path soundPath, Tone... fallbackTones) {
+    new Thread(
+            () -> {
+              if (!playMp3(soundPath)) {
+                playSound(fallbackTones);
+              }
+            },
+            "gui-mp3-sound-effect")
+        .start();
+  }
+
+  private boolean playMp3(Path soundPath) {
+    try {
+      Process process = new ProcessBuilder("afplay", soundPath.toAbsolutePath().toString()).start();
+      return process.waitFor() == 0;
+    } catch (IOException | InterruptedException e) {
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
+      return false;
+    }
+  }
+
+  private void playSoundAsync(Tone... tones) {
+    new Thread(() -> playSound(tones), "gui-sound-effect").start();
+  }
+
+  private void playSound(Tone... tones) {
+    AudioFormat format = new AudioFormat(44_100, 16, 1, true, false);
+    try (SourceDataLine line = AudioSystem.getSourceDataLine(format)) {
+      line.open(format);
+      line.start();
+      for (Tone tone : tones) {
+        byte[] data = toneBytes(format, tone);
+        line.write(data, 0, data.length);
+      }
+      line.drain();
+    } catch (LineUnavailableException ignored) {
+    }
+  }
+
+  private byte[] toneBytes(AudioFormat format, Tone tone) {
+    int sampleRate = (int) format.getSampleRate();
+    int sampleCount = sampleRate * tone.durationMs() / 1000;
+    byte[] data = new byte[sampleCount * 2];
+    for (int i = 0; i < sampleCount; i++) {
+      double seconds = i / (double) sampleRate;
+      double envelope = Math.min(1.0, Math.min(i / 600.0, (sampleCount - i) / 1200.0));
+      short value =
+          tone.frequencyHz() == 0
+              ? 0
+              : (short) (Math.sin(2 * Math.PI * tone.frequencyHz() * seconds) * 10_000 * envelope);
+      data[i * 2] = (byte) (value & 0xFF);
+      data[i * 2 + 1] = (byte) ((value >> 8) & 0xFF);
+    }
+    return data;
+  }
+
+  private record Tone(int frequencyHz, int durationMs) {}
+
   private void markDisconnectedOnUi() {
     SwingUtilities.invokeLater(
         () -> {
@@ -387,6 +494,7 @@ public class GuiClient {
           disconnectButton.setEnabled(false);
           disableAnswerButtons();
           timerPanel.reset();
+          feedbackPanel.clear();
         });
   }
 
@@ -413,6 +521,7 @@ public class GuiClient {
     questionArea.setText("");
     disableAnswerButtons();
     timerPanel.reset();
+    feedbackPanel.clear();
     statusLabel.setText("Status: WAITING");
     ((CardLayout) cards.getLayout()).show(cards, "GAME");
   }
@@ -567,6 +676,80 @@ public class GuiClient {
     }
   }
 
+  private static class FeedbackPanel extends JPanel {
+    private enum ResultMark {
+      NONE,
+      CORRECT,
+      WRONG
+    }
+
+    private ResultMark mark = ResultMark.NONE;
+
+    FeedbackPanel() {
+      setOpaque(false);
+      setPreferredSize(new Dimension(260, 92));
+    }
+
+    void showCorrect() {
+      mark = ResultMark.CORRECT;
+      repaint();
+    }
+
+    void showWrong() {
+      mark = ResultMark.WRONG;
+      repaint();
+    }
+
+    void clear() {
+      mark = ResultMark.NONE;
+      repaint();
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+      super.paintComponent(g);
+      if (mark == ResultMark.NONE) {
+        return;
+      }
+
+      Graphics2D g2 = (Graphics2D) g.create();
+      g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+      int iconSize = 56;
+      int iconX = Math.max(10, getWidth() / 2 - 106);
+      int iconY = (getHeight() - iconSize) / 2;
+
+      if (mark == ResultMark.CORRECT) {
+        g2.setColor(new Color(230, 56, 64));
+        for (int i = 0; i < 8; i++) {
+          g2.drawOval(iconX + i, iconY + i, iconSize - i * 2, iconSize - i * 2);
+        }
+        drawFeedbackText(g2, "正解！", iconX + iconSize + 14, iconY + 39, new Color(255, 92, 100));
+      } else {
+        g2.setColor(new Color(64, 132, 220));
+        g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 64));
+        int crossWidth = g2.getFontMetrics().stringWidth("×");
+        int crossX = iconX + (iconSize - crossWidth) / 2;
+        int crossY =
+            iconY
+                + (iconSize - g2.getFontMetrics().getHeight()) / 2
+                + g2.getFontMetrics().getAscent();
+        g2.drawString("×", crossX, crossY);
+        drawFeedbackText(g2, "不正解", iconX + iconSize + 14, iconY + 39, new Color(120, 178, 255));
+      }
+
+      g2.dispose();
+    }
+
+    private void drawFeedbackText(Graphics2D g2, String text, int x, int y, Color color) {
+      g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 30));
+      g2.setColor(new Color(0, 0, 0, 130));
+      g2.drawString(text, x + 2, y + 2);
+      g2.setColor(color);
+      g2.drawString(text, x, y);
+    }
+  }
+
   private static class PlayerStatusPanel extends JPanel {
     PlayerStatusPanel(JLabel playerLabel, JLabel statusLabel) {
       setOpaque(false);
@@ -699,13 +882,33 @@ public class GuiClient {
 
       int columnWidth = Math.max(150, w / 5);
       int startX = (w - columnWidth * 4) / 2;
-      int baseY = h - 54;
+      int baseY = h - 24;
+      double heightScale = Math.min(1.0, Math.max(0.58, (h - 120) / 300.0));
 
-      drawRankGroup(g2, playersAtRank(2), "2nd", startX, columnWidth, baseY, 128);
-      drawRankGroup(g2, playersAtRank(1), "1st", startX + columnWidth, columnWidth, baseY, 176);
-      drawRankGroup(g2, playersAtRank(3), "3rd", startX + columnWidth * 2, columnWidth, baseY, 104);
+      drawRankGroup(
+          g2, playersAtRank(2), "2nd", startX, columnWidth, baseY, scaled(128, heightScale));
+      drawRankGroup(
+          g2,
+          playersAtRank(1),
+          "1st",
+          startX + columnWidth,
+          columnWidth,
+          baseY,
+          scaled(176, heightScale));
+      drawRankGroup(
+          g2,
+          playersAtRank(3),
+          "3rd",
+          startX + columnWidth * 2,
+          columnWidth,
+          baseY,
+          scaled(104, heightScale));
       drawRankGroup(g2, playersAtRank(4), "4th", startX + columnWidth * 3, columnWidth, baseY, 0);
       g2.dispose();
+    }
+
+    private int scaled(int value, double scale) {
+      return (int) Math.round(value * scale);
     }
 
     private List<ScoreEntry> playersAtRank(int rank) {
